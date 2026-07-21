@@ -58,6 +58,17 @@ So the usable design region is x from ${r1(fab.endMargin)} to ${r1(L - fab.endMa
 - Always round internal corners.
 - Distribute cutouts evenly along X so the strip bends into a smooth arc; avoid concentrating open area in one zone.
 
+## AESTHETIC PRINCIPLES — apply these DEFAULTS unless the user explicitly asks otherwise
+This is jewelry: the goal is an elegant, deliberate composition, not a perforated sheet.
+- ONE motif language per design. Pick a single family of shapes (waves, leaves, circles, geometric lattice...) and commit to it — never mix unrelated shapes.
+- Symmetry: mirror the composition about the horizontal centerline y=${r1(W / 2)}, and make it left-right symmetric about x=${r1(L / 2)} (the visual center when worn). Small intentional asymmetry is fine only if the user asks for it.
+- Rhythm with variation: repeat the motif at a steady spacing, but vary its scale gradually — largest elements near the center x=${r1(L / 2)}, easing smaller toward the ends. A pattern that stops abruptly at the end margins looks cut off; taper it out gracefully.
+- Flowing continuity: build curves as long, smooth paths with tangent-continuous Beziers (no visible kinks or polyline segments). For wave/organic themes, let a continuous line of MATERIAL flow through the whole strip.
+- Design the metal, not the holes: the remaining brass is what the eye sees. After planning the cutouts, check that the solid shapes between them form a clean figure — ribbons, cells, or frames — with fairly consistent visual weight, not leftover scraps.
+- Hierarchy: a few dominant elements plus smaller supporting ones reads better than many equal mid-size holes. Avoid visual noise: do not scatter many tiny cutouts near the minimum size.
+- Coherent negative-space lines: cutout edges that neighbors share should align or flow into each other, so the pattern reads as one composition rather than isolated punches.
+- Avoid unless explicitly requested: random scatter, plain rectangular grids of identical holes, sharp angular shards, a single oversized hole, or mixing more than one motif family.
+
 ## TEXT IN DESIGNS
 Never draw letters yourself with paths. If the user wants text (a name, a word) in the design, emit this special element inside the cutouts layer instead:
 \`<text-request content="THE TEXT" x="80" y="7.5" height="6" align="middle"/>\`
