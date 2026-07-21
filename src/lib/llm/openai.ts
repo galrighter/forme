@@ -38,7 +38,8 @@ export async function callOpenAi(req: LlmRequest): Promise<string> {
     ],
   };
   if (/^(gpt-5|o\d)/.test(model)) {
-    body.reasoning_effort = process.env.OPENAI_REASONING_EFFORT || "medium";
+    // "medium" חורג ממגבלת ה-120s על יצירת SVG מלא — "low" מהיר ועדיין חושב
+    body.reasoning_effort = process.env.OPENAI_REASONING_EFFORT || "low";
   }
 
   const controller = new AbortController();
