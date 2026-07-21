@@ -1,0 +1,16 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "forme-studio",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2025-05-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "observability": {
+    "enabled": true
+  }
+  // Runtime secrets (set via `wrangler secret put` or the deploy workflow):
+  //   ANTHROPIC_API_KEY, SUPABASE_URL, SUPABASE_SECRET_KEY, LLM_MODEL
+}
