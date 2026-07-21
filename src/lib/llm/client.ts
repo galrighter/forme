@@ -18,5 +18,15 @@ export function activeModel(): string {
 }
 
 export async function callLlm(req: LlmRequest): Promise<string> {
-  return resolveProvider() === "openai" ? callOpenAi(req) : callAnthropic(req);
+  if (resolveProvider() !== "openai") return callAnthropic(req);
+  try {
+    return await callOpenAi(req);
+  } catch (e) {
+    // נסיגה ל-Anthropic על timeout/שגיאת שרת — עדיף תוצאה מספק אחר מכישלון
+    if (process.env.ANTHROPIC_API_KEY) {
+      console.warn(`OpenAI failed, falling back to Anthropic: ${e instanceof Error ? e.message : e}`);
+      return callAnthropic(req);
+    }
+    throw e;
+  }
 }
