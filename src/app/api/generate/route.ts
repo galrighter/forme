@@ -101,6 +101,7 @@ export async function POST(req: Request) {
       report: result.report,
       geometry,
       repairRounds: result.repairRounds,
+      llm: result.llm,
     });
   } catch (err) {
     if (err instanceof LlmError) {

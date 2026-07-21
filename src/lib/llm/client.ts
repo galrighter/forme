@@ -1,7 +1,7 @@
 // בחירת ספק LLM: LLM_PROVIDER מפורש מנצח; אחרת — OpenAI אם יש מפתח,
 // עם נסיגה ל-Anthropic.
 
-import type { LlmRequest } from "./core";
+import type { LlmReply, LlmRequest } from "./core";
 import { anthropicModel, callAnthropic } from "./anthropic";
 import { callOpenAi, hasOpenAiKey, openaiModel } from "./openai";
 
@@ -17,15 +17,17 @@ export function activeModel(): string {
   return resolveProvider() === "openai" ? openaiModel() : anthropicModel();
 }
 
-export async function callLlm(req: LlmRequest): Promise<string> {
-  if (resolveProvider() !== "openai") return callAnthropic(req);
+export async function callLlm(req: LlmRequest): Promise<LlmReply> {
+  if (resolveProvider() !== "openai") {
+    return { text: await callAnthropic(req), provider: "anthropic", model: anthropicModel() };
+  }
   try {
-    return await callOpenAi(req);
+    return { text: await callOpenAi(req), provider: "openai", model: openaiModel() };
   } catch (e) {
     // נסיגה ל-Anthropic על timeout/שגיאת שרת — עדיף תוצאה מספק אחר מכישלון
     if (process.env.ANTHROPIC_API_KEY) {
       console.warn(`OpenAI failed, falling back to Anthropic: ${e instanceof Error ? e.message : e}`);
-      return callAnthropic(req);
+      return { text: await callAnthropic(req), provider: "anthropic", model: anthropicModel() };
     }
     throw e;
   }

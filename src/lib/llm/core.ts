@@ -14,6 +14,13 @@ export interface LlmRequest {
 
 export const LLM_TIMEOUT_MS = 120_000;
 
+/** מי ענה בפועל — לשקיפות מול הלקוח ולאבחון נסיגה בין ספקים. */
+export interface LlmReply {
+  text: string;
+  provider: "openai" | "anthropic";
+  model: string;
+}
+
 export class LlmError extends Error {
   constructor(message: string, public retriable: boolean) {
     super(message);
