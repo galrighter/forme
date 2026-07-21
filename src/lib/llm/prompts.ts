@@ -58,6 +58,11 @@ So the usable design region is x from ${r1(fab.endMargin)} to ${r1(L - fab.endMa
 - Always round internal corners.
 - Distribute cutouts evenly along X so the strip bends into a smooth arc; avoid concentrating open area in one zone.
 
+## TEXT IN DESIGNS
+Never draw letters yourself with paths. If the user wants text (a name, a word) in the design, emit this special element inside the cutouts layer instead:
+\`<text-request content="THE TEXT" x="80" y="7.5" height="6" align="middle"/>\`
+where x,y is the anchor point in mm (y = vertical center of the text), height is the letter height in mm, and align is start/middle/end relative to x. The system converts it to letter cutout paths in a bold Hebrew+Latin font and automatically bridges closed letter counters (ם, ס, O, A...) so nothing falls out. Hebrew is supported. Make sure height and position respect the margins above.
+
 ## EDITING MODE
 When the user message includes the CURRENT design SVG, you are EDITING it: return the complete updated SVG (never a diff). Preserve everything the user did not ask to change.
 If an annotation image is attached: the red markings on it are edit instructions — interpret them together with the user's text, change ONLY the marked regions and preserve the rest of the design.`;
