@@ -105,6 +105,16 @@ describe("validateDesign", () => {
     expect(v4.status).toBe("fail");
   });
 
+  it("V4: does NOT fail a bridge thin only in Y (safe along the bend axis)", () => {
+    // שני חורים מוערמים אנכית עם פס מתכת אופקי דק ביניהם (~1.6מ"מ ב-Y, רחב ב-X).
+    // הכיפוף מותח רק ב-X, לכן הפס בטוח — אסור שיסומן ככשל V4.
+    const { report } = validateDesign(
+      svg(`<rect x="40" y="4" width="80" height="2.7"/><rect x="40" y="8.3" width="80" height="2.7"/>`),
+      DIMS,
+    );
+    expect(report.checks.find((c) => c.check === "V4")!.status).toBe("pass");
+  });
+
   it("V5: flags a hole smaller than minHole", () => {
     const { report } = validateDesign(svg(`<circle cx="80" cy="7.5" r="0.6"/>`), DIMS);
     expect(report.checks.find((c) => c.check === "V5")!.status).toBe("fail");
@@ -128,5 +138,19 @@ describe("validateDesign", () => {
     expect(report.status).toBe("fail");
     expect(normalized).toBeNull();
     expect(report.checks[0].check).toBe("V1");
+  });
+
+  it("V9: does NOT flag smooth rounded cutouts as sharp corners", () => {
+    // אליפסות חלקות (קצוות מחודדים אך מעוגלים) — לא אמורות להיחשב פינות חדות
+    const holes: string[] = [];
+    for (let x = 20; x <= 140; x += 16) holes.push(`<ellipse cx="${x}" cy="7.5" rx="5" ry="2.5"/>`);
+    const { report } = validateDesign(svg(holes.join("")), DIMS);
+    expect(report.checks.find((c) => c.check === "V9")!.status).toBe("pass");
+  });
+
+  it("V9: flags a genuinely sharp angular notch", () => {
+    // מלבן חיתוך עם פינות ישרות (90°, רדיוס ~0) — פינות פנימיות חדות אמיתיות
+    const { report } = validateDesign(svg(`<rect x="76" y="5" width="8" height="5"/>`), DIMS);
+    expect(report.checks.find((c) => c.check === "V9")!.status).toBe("warn");
   });
 });
