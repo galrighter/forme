@@ -5,7 +5,7 @@ import { FAB } from "@/lib/fabrication.config";
 import { getDesign, insertVersion, countTodayGenerations } from "@/lib/db/designs";
 import { uploadFile, decodeDataUrl } from "@/lib/db/storage";
 import { runGeneratePipeline } from "@/lib/llm/pipeline";
-import { LlmError, type LlmImage } from "@/lib/llm/anthropic";
+import { LlmError, type LlmImage } from "@/lib/llm/core";
 import { difference, rectPolygon } from "@/lib/geometry/poly";
 
 // יצירה/עריכה דרך LLM + לולאת ולידציה — סעיף 6.

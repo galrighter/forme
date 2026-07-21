@@ -2,7 +2,8 @@ import { FAB } from "@/lib/fabrication.config";
 import { validateDesign, type DesignDims } from "@/lib/geometry/validate";
 import type { NormalizedDesign } from "@/lib/geometry/normalize";
 import type { ValidationReport } from "@/lib/geometry/types";
-import { callLlm, type LlmImage } from "./anthropic";
+import { callLlm } from "./client";
+import type { LlmImage } from "./core";
 import { buildSystemPrompt, buildGenerateUserText, buildRepairUserText, type PromptDims } from "./prompts";
 import { convertTextRequests } from "@/lib/text/textToPath";
 
