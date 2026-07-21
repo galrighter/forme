@@ -3,7 +3,7 @@
 import { LLM_TIMEOUT_MS, LlmError, type LlmRequest } from "./core";
 
 export function openaiModel(): string {
-  return process.env.OPENAI_MODEL || "gpt-5.3";
+  return process.env.OPENAI_MODEL || "gpt-5.3-chat-latest";
 }
 
 function openaiKey(): string | undefined {
@@ -37,8 +37,9 @@ export async function callOpenAi(req: LlmRequest): Promise<string> {
       { role: "user", content },
     ],
   };
-  if (/^(gpt-5|o\d)/.test(model)) {
-    // "medium" חורג ממגבלת ה-120s על יצירת SVG מלא — "low" מהיר ועדיין חושב
+  // מודלי -chat אינם מודלי reasoning ודוחים את הפרמטר; לשאר —
+  // "medium" חורג ממגבלת ה-120s על יצירת SVG מלא, "low" מהיר ועדיין חושב
+  if (/^(gpt-5|o\d)/.test(model) && !model.includes("-chat")) {
     body.reasoning_effort = process.env.OPENAI_REASONING_EFFORT || "low";
   }
 
