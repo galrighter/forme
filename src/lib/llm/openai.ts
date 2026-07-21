@@ -3,7 +3,7 @@
 import { LLM_TIMEOUT_MS, LlmError, type LlmRequest } from "./core";
 
 export function openaiModel(): string {
-  return process.env.OPENAI_MODEL || "gpt-5.1";
+  return process.env.OPENAI_MODEL || "gpt-5.3";
 }
 
 function openaiKey(): string | undefined {

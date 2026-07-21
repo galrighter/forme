@@ -3,7 +3,7 @@ import { validateDesign, type DesignDims } from "@/lib/geometry/validate";
 import type { NormalizedDesign } from "@/lib/geometry/normalize";
 import type { ValidationReport } from "@/lib/geometry/types";
 import { callLlm } from "./client";
-import type { LlmImage } from "./core";
+import type { LlmImage, LlmReply } from "./core";
 import { buildSystemPrompt, buildGenerateUserText, buildRepairUserText, type PromptDims } from "./prompts";
 import { convertTextRequests } from "@/lib/text/textToPath";
 
@@ -17,6 +17,7 @@ export interface PipelineResult {
   normalized: NormalizedDesign | null;
   repairRounds: number;           // כמה סבבי תיקון בוצעו בפועל
   source: "generate" | "edit" | "auto_repair";
+  llm: Pick<LlmReply, "provider" | "model">;  // מי ענה בפועל (הקריאה האחרונה)
 }
 
 export async function runGeneratePipeline(opts: {
@@ -36,11 +37,12 @@ export async function runGeneratePipeline(opts: {
   };
   const baseSource = opts.currentSvg ? "edit" : "generate";
 
-  let raw = await callLlm({
+  let reply = await callLlm({
     system,
     userText: buildGenerateUserText(opts.userPrompt, opts.currentSvg, opts.hasAnnotation, opts.hasInspiration),
     images: opts.images,
   });
+  let raw = reply.text;
 
   let best: PipelineResult | null = null;
   for (let round = 0; round <= FAB.MAX_REPAIR_ROUNDS; round++) {
@@ -52,6 +54,7 @@ export async function runGeneratePipeline(opts: {
       normalized,
       repairRounds: round,
       source: round === 0 ? baseSource : "auto_repair",
+      llm: { provider: reply.provider, model: reply.model },
     };
     if (report.status !== "fail") return result;
     best = result;
@@ -61,7 +64,7 @@ export async function runGeneratePipeline(opts: {
     const explanation = failing
       .map((c) => `- [${c.check}] (${c.status}) ${c.details}`)
       .join("\n");
-    raw = await callLlm({
+    reply = await callLlm({
       system,
       userText: buildRepairUserText(
         normalized?.canonicalSvg ?? raw,
@@ -69,6 +72,7 @@ export async function runGeneratePipeline(opts: {
         explanation,
       ),
     });
+    raw = reply.text;
   }
   return best!;
 }
