@@ -124,33 +124,26 @@ export function validateNormalized(n: NormalizedDesign, dims: DesignDims): Valid
     }
   }
 
-  // V4 — רוחב גשר מינימלי (פתיחה מורפולוגית של material ברדיוס minBridgeBend/2)
+  // V4 — רוחב גשר מינימלי, מודע-כיוון. הכיפוף מותח את המתכת רק בציר X (ההיקף),
+  // לכן רק גשר דק *בציר X* בסיכון להיקרע. פס דק בציר Y שרחב ב-X בטוח.
+  // מודדים בכל גובה (scanline) את רצף המתכת האופקי; רצף קצר מ-minBridgeBend = סיכון.
   {
-    const r = fab.minBridgeBend / 2;
-    const eroded = offset(material, -r);
-    const opened = eroded.length > 0 ? offset(eroded, r) : [];
-    const lost = difference(material, opened);
-    const lostBig = lost.filter((p) => polygonArea(p) > 0.5);
-    const splits = eroded.length > material.length;
-    if (splits || lostBig.length > 0) {
-      // הבחנה בין "לא עובר גם חיתוך" ל"עובר חיתוך אך לא ערגול"
-      const rCut = fab.minBridgeCut / 2;
-      const erodedCut = offset(material, -rCut);
-      const openedCut = erodedCut.length > 0 ? offset(erodedCut, rCut) : [];
-      const lostCut = difference(material, openedCut).filter((p) => polygonArea(p) > 0.5);
-      const passesCut = !(erodedCut.length > material.length) && lostCut.length === 0;
+    const bendLocs = thinXBridges(material, fab.minBridgeBend, W);
+    if (bendLocs.length > 0) {
+      // הבחנה: עובר את מינימום החיתוך (1.5) אך לא את מינימום הערגול?
+      const cutLocs = thinXBridges(material, fab.minBridgeCut, W);
+      const passesCut = cutLocs.length === 0;
       const msg = passesCut ? he.checks.V4bend : he.checks.V4;
-      const locs = centroidLocations(lostBig.length > 0 ? lostBig : eroded.slice(1));
       checks.push({
         check: "V4", status: "fail", message: msg,
-        details: `Bridge narrower than the required minimum ${fab.minBridgeBend}mm ` +
+        details: `Material bridge too thin ALONG THE BENDING AXIS (X) — the required minimum is ${fab.minBridgeBend}mm ` +
           `(${dims.productType} roll-bending survival${passesCut ? `; it does pass the ${fab.minBridgeCut}mm clean-cut minimum, the problem is bend survival` : ""}). ` +
-          `Narrow region(s) near (mm): ${locs.map((l) => `(${l.x.toFixed(1)}, ${l.y.toFixed(1)})`).join(", ")}. ` +
-          `Widen the material bridges between cutouts.`,
-        locations: locs,
+          `Narrow region(s) near (mm): ${bendLocs.slice(0, 8).map((l) => `(${l.x.toFixed(1)}, ${l.y.toFixed(1)})`).join(", ")}${bendLocs.length > 8 ? "…" : ""}. ` +
+          `Widen the metal between horizontally-adjacent cutouts (a band thin only in Y but long in X is fine).`,
+        locations: bendLocs,
       });
     } else {
-      checks.push({ check: "V4", status: "pass", message: he.checks.V4, details: `All bridges ≥ ${fab.minBridgeBend}mm`, locations: [] });
+      checks.push({ check: "V4", status: "pass", message: he.checks.V4, details: `All X-direction bridges ≥ ${fab.minBridgeBend}mm`, locations: [] });
     }
   }
 
@@ -300,6 +293,57 @@ export function validateNormalized(n: NormalizedDesign, dims: DesignDims): Valid
 }
 
 type Pt = [number, number];
+
+/** חיתוכי scanline אופקי בגובה y עם כל הצלעות של material — מוחזרים ערכי x ממוינים.
+ *  זוגות עוקבים [x0,x1],[x2,x3]... הם רצפי המתכת (כלל even-odd). */
+function scanlineXs(material: MultiPolygon, y: number): number[] {
+  const xs: number[] = [];
+  for (const poly of material) {
+    for (const ring of poly) {
+      const n = ring.length;
+      for (let i = 0; i < n; i++) {
+        const a = ring[i], b = ring[(i + 1) % n];
+        const ay = a[1], by = b[1];
+        // הצלע חוצה את הקו y (חצי-פתוח כדי לא לספור קודקוד פעמיים)
+        if ((ay <= y && by > y) || (by <= y && ay > y)) {
+          const t = (y - ay) / (by - ay);
+          xs.push(a[0] + (b[0] - a[0]) * t);
+        }
+      }
+    }
+  }
+  xs.sort((p, q) => p - q);
+  return xs;
+}
+
+/** גשרים דקים בציר X: בכל scanline מחפשים רצף מתכת אופקי קצר מ-minWidth.
+ *  אשכולות נקודות סמוכות מאוחדים לאזור אחד. פס דק בציר Y (רחב ב-X) לא נתפס. */
+function thinXBridges(material: MultiPolygon, minWidth: number, W: number): ValidationLocation[] {
+  const step = 0.2;
+  const raw: { x: number; y: number; w: number }[] = [];
+  for (let y = step / 2; y < W; y += step) {
+    const xs = scanlineXs(material, y);
+    for (let k = 0; k + 1 < xs.length; k += 2) {
+      const w = xs[k + 1] - xs[k];
+      if (w > 1e-6 && w < minWidth) raw.push({ x: (xs[k] + xs[k + 1]) / 2, y, w });
+    }
+  }
+  // אשכול: מיזוג נקודות במרחק < minWidth ב-X ו-< 1.5 מ"מ ב-Y
+  const clusters: { x: number; y: number; n: number; minW: number }[] = [];
+  for (const p of raw) {
+    const c = clusters.find((c) => Math.abs(c.x - p.x) < Math.max(minWidth, 1) && Math.abs(c.y - p.y) < 1.5);
+    if (c) {
+      c.x = (c.x * c.n + p.x) / (c.n + 1);
+      c.y = (c.y * c.n + p.y) / (c.n + 1);
+      c.n += 1;
+      c.minW = Math.min(c.minW, p.w);
+    } else {
+      clusters.push({ x: p.x, y: p.y, n: 1, minW: p.w });
+    }
+  }
+  // סינון רעש: אשכול חייב להתפרש על לפחות ~0.6 מ"מ בגובה (3 scanlines)
+  return clusters.filter((c) => c.n >= 3).map((c) => ({ x: c.x, y: c.y, r: 1.5 }));
+}
 
 /** נקודה במרחק-קשת targetLen בדיוק מקודקוד i בכיוון dir (±1), כדי למדוד
  *  עקמומיות מקומית בלי תלות בצפיפות הדגימה. אם הקטע ארוך מהנדרש — אינטרפולציה
