@@ -299,46 +299,67 @@ export function validateNormalized(n: NormalizedDesign, dims: DesignDims): Valid
   };
 }
 
-/** זיהוי קודקודים חדים בקונטורים הפנימיים (גבולות ה-cutouts) של החומר */
-function findSharpCorners(material: MultiPolygon, minAngleDeg: number, minRadiusMm: number): ValidationLocation[] {
+type Pt = [number, number];
+
+/** נקודה במרחק-קשת targetLen בדיוק מקודקוד i בכיוון dir (±1), כדי למדוד
+ *  עקמומיות מקומית בלי תלות בצפיפות הדגימה. אם הקטע ארוך מהנדרש — אינטרפולציה
+ *  לנקודה המדויקת (כך שגם צלע ישרה ארוכה נמדדת בתוך החלון). */
+function walkArc(ring: readonly Pt[], i: number, dir: 1 | -1, targetLen: number): Pt {
+  const n = ring.length;
+  let remaining = targetLen;
+  let cur = i;
+  for (let step = 0; step < n; step++) {
+    const nxt = (cur + dir + n) % n;
+    const a = ring[cur], b = ring[nxt];
+    const segLen = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (segLen >= remaining) {
+      const t = segLen < 1e-12 ? 0 : remaining / segLen;
+      return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+    }
+    remaining -= segLen;
+    cur = nxt;
+  }
+  return ring[cur];
+}
+
+/** זיהוי פינות חדות אמיתיות בגבולות ה-cutouts: לא לפי זווית של קודקוד בודד
+ *  (שמסמן בטעות קצוות של עקומות חלקות שנדגמו כמצולע), אלא לפי **רדיוס עקמומיות**
+ *  מקומי — שלוש נקודות המשתרעות על חלון קשת בגודל ~minRadius מכל צד. עקומה
+ *  חלקה ברדיוס ≥ minRadius נותנת רדיוס-חוסם ≥ minRadius ולכן עוברת; פינה זוויתית
+ *  אמיתית (רדיוס ~0) נותנת רדיוס קטן ונתפסת. */
+function findSharpCorners(material: MultiPolygon, _minAngleDeg: number, minRadiusMm: number): ValidationLocation[] {
   const locs: ValidationLocation[] = [];
+  const win = Math.max(minRadiusMm, 0.35); // חלון קשת מכל צד של הקודקוד
   for (const poly of material) {
     // טבעות פנימיות בלבד = גבולות cutouts (הקונטור החיצוני הוא מלבן הרצועה)
     for (let ri = 1; ri < poly.length; ri++) {
-      const ring = poly[ri];
+      const ring = poly[ri] as readonly Pt[];
       const nPts = ring.length;
       if (nPts < 3) continue;
       for (let i = 0; i < nPts; i++) {
-        const p0 = ring[(i - 1 + nPts) % nPts];
-        const p1 = ring[i];
-        const p2 = ring[(i + 1) % nPts];
-        const v1 = [p0[0] - p1[0], p0[1] - p1[1]];
-        const v2 = [p2[0] - p1[0], p2[1] - p1[1]];
+        const b = ring[i];
+        const a = walkArc(ring, i, -1, win);
+        const c = walkArc(ring, i, 1, win);
+        const v1 = [a[0] - b[0], a[1] - b[1]];
+        const v2 = [c[0] - b[0], c[1] - b[1]];
         const l1 = Math.hypot(v1[0], v1[1]), l2 = Math.hypot(v2[0], v2[1]);
         if (l1 < 1e-9 || l2 < 1e-9) continue;
         const dot = (v1[0] * v2[0] + v1[1] * v2[1]) / (l1 * l2);
         const angleDeg = (Math.acos(Math.min(1, Math.max(-1, dot))) * 180) / Math.PI;
-        if (angleDeg < minAngleDeg) {
-          locs.push({ x: p1[0], y: p1[1], r: 1.5 });
-          continue;
-        }
-        // קירוב רדיוס עקמומיות: פנייה משמעותית (>45° מהקו הישר) עם רדיוס קטן.
-        // קטעים ישרים ארוכים משני צידי הקודקוד = פינה לא מעוגלת (רדיוס ~0);
-        // בקשת דגומה הנקודות צפופות והרדיוס נמדד מהמעגל החוסם.
-        if (angleDeg < 180 - 45) {
-          const sampled = Math.min(l1, l2) < 0.25;
-          const r = sampled ? circumradius(p0, p1, p2) : 0;
-          if (r !== null && r < minRadiusMm * 0.8) {
-            locs.push({ x: p1[0], y: p1[1], r: 1.5 });
-          }
+        // קודקוד כמעט-ישר (פנייה זניחה) — אין פינה, דלג
+        if (angleDeg > 150) continue;
+        const r = circumradius(a, b, c);
+        // r===null => שלוש נקודות קולינאריות (קו ישר) => לא פינה
+        if (r !== null && r < minRadiusMm) {
+          locs.push({ x: b[0], y: b[1], r: 1.5 });
         }
       }
     }
   }
-  // סינון כפילויות קרובות (בתוך 1 מ"מ)
+  // סינון כפילויות קרובות (בתוך 1.5 מ"מ) — קודקודים סמוכים על אותה פינה
   const filtered: ValidationLocation[] = [];
   for (const l of locs) {
-    if (!filtered.some((f) => Math.hypot(f.x - l.x, f.y - l.y) < 1)) filtered.push(l);
+    if (!filtered.some((f) => Math.hypot(f.x - l.x, f.y - l.y) < 1.5)) filtered.push(l);
   }
   return filtered;
 }

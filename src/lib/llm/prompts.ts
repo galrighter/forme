@@ -57,6 +57,8 @@ So the usable design region is x from ${r1(fab.endMargin)} to ${r1(L - fab.endMa
 - Aim for roughly 15–20% open area by default.
 - Always round internal corners.
 - Distribute cutouts evenly along X so the strip bends into a smooth arc; avoid concentrating open area in one zone.
+- NO thin lines or strokes. A cutout is a SHAPE with real area, never a 1–2mm-wide line. Give every cutout and every metal band between cutouts a generous width — comfortably above the minimums above (aim for cutout openings and bridges of at least ${r1(fab.minHole * 2)}–${r1(fab.minHole * 3)}mm across their narrow dimension). A "wave" or "flow" is a WIDE ribbon of removed material or a WIDE meandering band of metal — not a hairline.
+- Round every corner of every cutout to a real radius (≥ ${r1(fab.minInnerRadius * 2)}mm); no pointed tips or angular notches.
 
 ## AESTHETIC PRINCIPLES — apply these DEFAULTS unless the user explicitly asks otherwise
 This is jewelry: the goal is an elegant, deliberate composition, not a perforated sheet.
