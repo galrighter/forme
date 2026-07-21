@@ -100,9 +100,9 @@ export function Preview3D() {
     const W = Number(design.width_mm);
     const geo = buildBentGeometry(geometry.material, L, W, gap, t);
     const mat = new THREE.MeshStandardMaterial({
-      color: 0xc9a227,
-      metalness: 0.95,
-      roughness: 0.3,
+      color: 0xd9b14c,
+      metalness: 1.0,
+      roughness: 0.22,
       side: THREE.DoubleSide,
     });
     const mesh = new THREE.Mesh(geo, mat);
@@ -128,6 +128,10 @@ export function Preview3D() {
 /**
  * בניית BufferGeometry: משטח עליון+תחתון מטריאנגולציית earcut, דפנות לאורך
  * כל הטבעות (חיצוניות ופנימיות), ואז כיפוף כל vertex לקשת.
+ *
+ * הכיפוף מזיז רק קודקודים — משולש שמשתרע לאורך ציר X נשאר מיתר ישר ולכן
+ * הקשת נראית מרובעת. לפני הכיפוף מפצלים כל משולש/דופן עד שטווח ה-X שלו
+ * קטן מצעד הקשת (רק X משפיע על הכיפוף, אז משולשים צרים-גבוהים תקינים).
  */
 function buildBentGeometry(
   material: MultiPolygon,
@@ -137,9 +141,42 @@ function buildBentGeometry(
   thickness: number,
 ): THREE.BufferGeometry {
   const positions: number[] = [];
+  // צעד הקשת: ~1.5° לפאה — חלק לעין גם בזום
+  const step = Math.max(0.6, (L + gap) / 240);
 
-  const pushTri = (a: number[], b: number[], c: number[]) => {
-    positions.push(...a, ...b, ...c);
+  type V3 = [number, number, number];
+  const lerpAtX = (p: V3, q: V3, x: number): V3 => {
+    const t = (x - p[0]) / (q[0] - p[0]);
+    return [x, p[1] + (q[1] - p[1]) * t, p[2] + (q[2] - p[2]) * t];
+  };
+  // חצי-מישור אנכי (Sutherland–Hodgman) — שומר על כיוון ה-winding
+  const clipHalf = (pts: V3[], inside: (x: number) => boolean, atX: number): V3[] => {
+    const out: V3[] = [];
+    for (let i = 0; i < pts.length; i++) {
+      const p = pts[i], q = pts[(i + 1) % pts.length];
+      const pin = inside(p[0]), qin = inside(q[0]);
+      if (pin) out.push(p);
+      if (pin !== qin) out.push(lerpAtX(p, q, atX));
+    }
+    return out;
+  };
+  // חיתוך משולש לפרוסות X ברוחב step וטריאנגולציית מניפה של כל פרוסה
+  const pushTri = (a: V3, b: V3, c: V3) => {
+    const minX = Math.min(a[0], b[0], c[0]);
+    const maxX = Math.max(a[0], b[0], c[0]);
+    if (maxX - minX <= step) {
+      positions.push(...a, ...b, ...c);
+      return;
+    }
+    for (let lo = minX; lo < maxX - 1e-9; lo += step) {
+      const hi = Math.min(lo + step, maxX);
+      let poly: V3[] = [a, b, c];
+      poly = clipHalf(poly, (x) => x >= lo - 1e-9, lo);
+      poly = clipHalf(poly, (x) => x <= hi + 1e-9, hi);
+      for (let i = 1; i + 1 < poly.length; i++) {
+        positions.push(...poly[0], ...poly[i], ...poly[i + 1]);
+      }
+    }
   };
 
   for (const poly of material) {
@@ -151,37 +188,60 @@ function buildBentGeometry(
       for (const [x, y] of ring) flat.push(x, y);
     }
     const tris = earcut(flat, holeIdx.length ? holeIdx : undefined);
-    const v = (i: number, z: number) => [flat[i * 2], flat[i * 2 + 1], z];
+    const v = (i: number, z: number): V3 => [flat[i * 2], flat[i * 2 + 1], z];
     // משטח עליון (z=t) ותחתון (z=0), כיווני winding הפוכים
     for (let i = 0; i < tris.length; i += 3) {
       pushTri(v(tris[i], thickness), v(tris[i + 1], thickness), v(tris[i + 2], thickness));
       pushTri(v(tris[i], 0), v(tris[i + 2], 0), v(tris[i + 1], 0));
     }
-    // דפנות
+  }
+  // המשטחים העליון/תחתון מקבלים נורמלים רדיאליים אנליטיים אחרי הכיפוף
+  const faceVertexCount = positions.length / 3;
+
+  for (const poly of material) {
+    // דפנות — מחלקים כל קטע לפי טווח ה-X שלו
     for (const ring of poly) {
       for (let i = 0; i < ring.length; i++) {
         const p = ring[i];
         const q = ring[(i + 1) % ring.length];
-        const a = [p[0], p[1], 0], b = [q[0], q[1], 0];
-        const a2 = [p[0], p[1], thickness], b2 = [q[0], q[1], thickness];
-        pushTri(a, b, b2);
-        pushTri(a, b2, a2);
+        const n = Math.max(1, Math.ceil(Math.abs(q[0] - p[0]) / step));
+        for (let k = 0; k < n; k++) {
+          const t0 = k / n, t1 = (k + 1) / n;
+          const x0 = p[0] + (q[0] - p[0]) * t0, y0 = p[1] + (q[1] - p[1]) * t0;
+          const x1 = p[0] + (q[0] - p[0]) * t1, y1 = p[1] + (q[1] - p[1]) * t1;
+          const a: V3 = [x0, y0, 0], b: V3 = [x1, y1, 0];
+          const a2: V3 = [x0, y0, thickness], b2: V3 = [x1, y1, thickness];
+          positions.push(...a, ...b, ...b2);
+          positions.push(...a, ...b2, ...a2);
+        }
       }
     }
   }
 
-  // כיפוף: θ=(x−L/2)/R, מיקום ((R+z)·sinθ, y, (R+z)·cosθ−R) — הפער מול המצלמה
+  // כיפוף: θ=(x−L/2)/R + היסט של π כך שמרכז הטבעת בראשית והמפתח מול המצלמה
   const R = (L + gap) / (2 * Math.PI);
   for (let i = 0; i < positions.length; i += 3) {
     const x = positions[i], y = positions[i + 1], z = positions[i + 2];
-    const theta = (x - L / 2) / R;
+    const theta = (x - L / 2) / R + Math.PI;
     positions[i] = (R + z) * Math.sin(theta);
     positions[i + 1] = W / 2 - y; // ציר Y של SVG כלפי מטה → הפוך לתצוגה
-    positions[i + 2] = (R + z) * Math.cos(theta) - R;
+    positions[i + 2] = (R + z) * Math.cos(theta);
   }
 
   const geo = new THREE.BufferGeometry();
   geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
   geo.computeVertexNormals();
+
+  // נורמלים אנליטיים למשטחים הכפופים — פני מתכת חלקים במקום פאות שטוחות
+  const norm = geo.getAttribute("normal") as THREE.BufferAttribute;
+  const pos = geo.getAttribute("position") as THREE.BufferAttribute;
+  for (let i = 0; i < faceVertexCount; i++) {
+    const x = pos.getX(i), z = pos.getZ(i);
+    const len = Math.hypot(x, z) || 1;
+    const rx = x / len, rz = z / len;
+    const sign = Math.sign(norm.getX(i) * rx + norm.getZ(i) * rz) || 1;
+    norm.setXYZ(i, sign * rx, 0, sign * rz);
+  }
+  norm.needsUpdate = true;
   return geo;
 }

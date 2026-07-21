@@ -15,5 +15,6 @@
     "enabled": true
   }
   // Runtime secrets (set via `wrangler secret put` or the deploy workflow):
-  //   ANTHROPIC_API_KEY, SUPABASE_URL, SUPABASE_SECRET_KEY, LLM_MODEL
+  //   ANTHROPIC_API_KEY, OPENAI_KEY, SUPABASE_URL, SUPABASE_SECRET_KEY,
+  //   LLM_MODEL, OPENAI_MODEL, LLM_PROVIDER
 }

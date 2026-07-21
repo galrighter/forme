@@ -1,30 +1,12 @@
 // קריאות Anthropic API מצד שרת בלבד. בלי SDK — fetch ישיר, שליטה מלאה ב-timeout.
 
-export interface LlmImage {
-  mediaType: "image/png" | "image/jpeg" | "image/webp";
-  base64: string;
-}
+import { LLM_TIMEOUT_MS, LlmError, type LlmRequest } from "./core";
 
-export interface LlmRequest {
-  system: string;
-  userText: string;
-  images?: LlmImage[];
-  maxTokens?: number;
-}
-
-const LLM_TIMEOUT_MS = 120_000;
-
-export function llmModel(): string {
+export function anthropicModel(): string {
   return process.env.LLM_MODEL || "claude-sonnet-4-6";
 }
 
-export class LlmError extends Error {
-  constructor(message: string, public retriable: boolean) {
-    super(message);
-  }
-}
-
-export async function callLlm(req: LlmRequest): Promise<string> {
+export async function callAnthropic(req: LlmRequest): Promise<string> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new LlmError("ANTHROPIC_API_KEY is not configured", false);
 
@@ -48,7 +30,7 @@ export async function callLlm(req: LlmRequest): Promise<string> {
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: llmModel(),
+        model: anthropicModel(),
         max_tokens: req.maxTokens ?? 8192,
         system: req.system,
         messages: [{ role: "user", content }],
