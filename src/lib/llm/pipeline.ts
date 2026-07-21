@@ -17,7 +17,7 @@ export interface PipelineResult {
   normalized: NormalizedDesign | null;
   repairRounds: number;           // כמה סבבי תיקון בוצעו בפועל
   source: "generate" | "edit" | "auto_repair";
-  llm: Pick<LlmReply, "provider" | "model">;  // מי ענה בפועל (הקריאה האחרונה)
+  llm: Pick<LlmReply, "provider" | "model" | "fallbackReason">;  // מי ענה בפועל (הקריאה האחרונה)
 }
 
 export async function runGeneratePipeline(opts: {
@@ -54,7 +54,7 @@ export async function runGeneratePipeline(opts: {
       normalized,
       repairRounds: round,
       source: round === 0 ? baseSource : "auto_repair",
-      llm: { provider: reply.provider, model: reply.model },
+      llm: { provider: reply.provider, model: reply.model, fallbackReason: reply.fallbackReason },
     };
     if (report.status !== "fail") return result;
     best = result;

@@ -26,8 +26,9 @@ export async function callLlm(req: LlmRequest): Promise<LlmReply> {
   } catch (e) {
     // נסיגה ל-Anthropic על timeout/שגיאת שרת — עדיף תוצאה מספק אחר מכישלון
     if (process.env.ANTHROPIC_API_KEY) {
-      console.warn(`OpenAI failed, falling back to Anthropic: ${e instanceof Error ? e.message : e}`);
-      return { text: await callAnthropic(req), provider: "anthropic", model: anthropicModel() };
+      const reason = e instanceof Error ? e.message : String(e);
+      console.warn(`OpenAI failed, falling back to Anthropic: ${reason}`);
+      return { text: await callAnthropic(req), provider: "anthropic", model: anthropicModel(), fallbackReason: reason };
     }
     throw e;
   }

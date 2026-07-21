@@ -19,6 +19,7 @@ export interface LlmReply {
   text: string;
   provider: "openai" | "anthropic";
   model: string;
+  fallbackReason?: string;   // קיים רק כשהספק המועדף נכשל ועברנו לגיבוי
 }
 
 export class LlmError extends Error {
