@@ -61,6 +61,11 @@ jobs:
         run: |
           ssh -i ~/.ssh/deploy_key -p "${PORT:-22}" "$USER@$HOST" "VTOKEN='$VTOKEN' bash -s" <<'REMOTE'
           set -euo pipefail
+          # install Docker if the box doesn't have it yet
+          if ! command -v docker >/dev/null 2>&1; then
+            echo "Docker not found; installing via get.docker.com"
+            curl -fsSL https://get.docker.com | sh
+          fi
           cd ~/forme-vectorizer
           docker build -t forme-vectorizer .
           docker rm -f forme-vectorizer 2>/dev/null || true
