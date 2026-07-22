@@ -1,0 +1,113 @@
+"""HTTP layer — the vectorizer as a service forme (on Cloudflare) calls over HTTP.
+
+Synchronous processing per the MVP recommendation: POST /api/jobs runs the
+pipeline and returns result.json inline; output files are also persisted to the
+job directory and served via GET /api/jobs/{id}/files/{name}.
+"""
+
+from __future__ import annotations
+
+import json
+
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi.responses import FileResponse, JSONResponse
+
+from .. import pipeline
+from ..config import SETTINGS
+from ..core.renderer import RenderError
+from ..core.validation import InputError
+from ..storage.job_storage import STORE
+
+app = FastAPI(title="raster-to-svg vectorizer", version="0.1.0")
+
+
+@app.get("/api/health")
+def health() -> dict:
+    return {"status": "ok", "tracer_backend": SETTINGS.tracer_backend}
+
+
+@app.post("/api/jobs")
+async def create_job(
+    image: UploadFile = File(...),
+    width_mm: float = Form(...),
+    height_mm: float = Form(...),
+    dark_region_role: str = Form("metal"),
+    output_mode: str = Form("both"),
+) -> JSONResponse:
+    data = await image.read()
+    if len(data) > SETTINGS.max_upload_mb * 1_000_000:
+        raise HTTPException(413, detail={"error_code": "FILE_TOO_LARGE"})
+    if dark_region_role not in ("metal", "background"):
+        raise HTTPException(400, detail={"error_code": "INVALID_DIMENSIONS", "message": "bad dark_region_role"})
+
+    rec = STORE.create()
+    try:
+        res = pipeline.run_pipeline(data, width_mm, height_mm, dark_region_role, output_mode)
+    except InputError as exc:
+        rec.status = "rejected"
+        rec.error_code = exc.code
+        rec.error_message = exc.message
+        return JSONResponse(
+            status_code=422,
+            content={"job_id": rec.job_id, "status": "rejected", "error_code": exc.code, "error_message": exc.message},
+        )
+    except RenderError as exc:
+        rec.status = "failed"
+        rec.error_code = "RENDER_FAILED"
+        rec.error_message = str(exc)
+        raise HTTPException(500, detail={"error_code": "RENDER_FAILED", "message": str(exc)}) from exc
+
+    result = pipeline.to_result_dict(res)
+    rec.status = res.status
+    rec.result = result
+
+    STORE.write_file(rec, "result.json", json.dumps(result, indent=2).encode())
+    sel = res.selection.selected
+    if sel is not None and res.rendered_mask is not None:
+        STORE.write_file(rec, "metal.svg", sel.metal_svg.encode())
+        STORE.write_file(rec, "cutouts.svg", sel.cutouts_svg.encode())
+        STORE.write_file(rec, "rendered.png", pipeline.mask_png(res.rendered_mask))
+        STORE.write_file(rec, "difference.png", pipeline.difference_image(res.source_mask, res.rendered_mask))
+        STORE.write_file(rec, "overlay.png", pipeline.overlay_image(res.image, res.rendered_mask))
+
+    # inline the SVGs so forme can consume them without a second round-trip
+    payload = {"job_id": rec.job_id, **result}
+    if sel is not None:
+        payload["cutouts_svg"] = sel.cutouts_svg
+        payload["metal_svg"] = sel.metal_svg
+    return JSONResponse(status_code=200, content=payload)
+
+
+@app.get("/api/jobs/{job_id}")
+def job_status(job_id: str) -> dict:
+    rec = STORE.get(job_id)
+    if rec is None:
+        raise HTTPException(404, detail={"error_code": "NOT_FOUND"})
+    return {
+        "job_id": rec.job_id,
+        "status": rec.status,
+        "error_code": rec.error_code,
+        "result": rec.result or None,
+    }
+
+
+@app.get("/api/jobs/{job_id}/files/{filename}")
+def job_file(job_id: str, filename: str) -> FileResponse:
+    rec = STORE.get(job_id)
+    if rec is None:
+        raise HTTPException(404, detail={"error_code": "NOT_FOUND"})
+    path = STORE.file_path(rec, filename)
+    if path is None:
+        raise HTTPException(404, detail={"error_code": "FILE_NOT_FOUND"})
+    media = "image/svg+xml" if filename.endswith(".svg") else (
+        "application/json" if filename.endswith(".json") else "image/png"
+    )
+    return FileResponse(path, media_type=media, filename=filename)
+
+
+@app.delete("/api/jobs/{job_id}")
+def delete_job(job_id: str) -> dict:
+    ok = STORE.delete(job_id)
+    if not ok:
+        raise HTTPException(404, detail={"error_code": "NOT_FOUND"})
+    return {"job_id": job_id, "deleted": True}
