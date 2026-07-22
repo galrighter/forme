@@ -37,6 +37,7 @@ export async function runGeneratePipeline(opts: {
   };
   const baseSource = opts.currentSvg ? "edit" : "generate";
 
+  // יצירה בפרומפט כללי קצר; חריגות מטופלות בלולאת התיקון שלמטה.
   let reply = await callLlm({
     system,
     userText: buildGenerateUserText(opts.userPrompt, opts.currentSvg, opts.hasAnnotation, opts.hasInspiration),

@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { handleRouteError, parseBody, ApiError } from "@/lib/api";
-import { FAB } from "@/lib/fabrication.config";
 import { supabaseAdmin, STORAGE_BUCKET } from "@/lib/db/supabase";
 import { getDesign, getVersion } from "@/lib/db/designs";
 import { uploadFile } from "@/lib/db/storage";
 import { normalizeSvg } from "@/lib/geometry/normalize";
+import { difference, rectPolygon } from "@/lib/geometry/poly";
 import { buildDxf, buildExportSvg } from "@/lib/dxf/dxf";
 
 // ייצוא ייצור — סעיף 10. זמין בסטטוס pass; ב-warn רק עם forced=true; fail חסום.
@@ -32,15 +32,11 @@ export async function POST(req: Request) {
     const W = Number(design.width_mm);
     const normalized = normalizeSvg(version.svg, L, W);
 
-    const dxfInput = {
-      lengthMm: L,
-      widthMm: W,
-      outerCornerRadiusMm: FAB.outerCornerRadiusMm,
-      cutUnion: normalized.cutUnion,
-    };
+    // גבול המתכת האמיתי (כולל קצה גלי אם חיתוך מגיע לקצה)
+    const material = difference([rectPolygon(0, 0, L, W)], normalized.cutUnion);
+    const dxfInput = { lengthMm: L, widthMm: W, material };
     const dxf = buildDxf(dxfInput);
-    const cutoutEls = /<g id="cutouts">(.*)<\/g>/s.exec(normalized.canonicalSvg)?.[1] ?? "";
-    const exportSvg = buildExportSvg(dxfInput, cutoutEls);
+    const exportSvg = buildExportSvg(dxfInput);
 
     const safeName = design.name.replace(/[^\p{L}\p{N}_-]+/gu, "_").replace(/^_+|_+$/g, "") || "design";
     const asciiName = /^[\w-]+$/.test(safeName) ? safeName : "design";
