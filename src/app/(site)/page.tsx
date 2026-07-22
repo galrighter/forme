@@ -141,12 +141,20 @@ export default function HomePage() {
             {s.ctaStartLong}
           </h2>
           <p className="mx-auto mt-3 max-w-lg text-stone-300">{s.heroSubtitle}</p>
-          <Link
-            href="/studio"
-            className="mt-8 inline-block rounded-full bg-[#c9a227] px-7 py-3 text-sm font-semibold text-stone-900 transition-colors hover:bg-[#e6c766]"
-          >
-            {s.heroCtaPrimary}
-          </Link>
+          <div className="mt-8 flex flex-wrap justify-center gap-3">
+            <Link
+              href="/studio"
+              className="inline-block rounded-full bg-[#c9a227] px-7 py-3 text-sm font-semibold text-stone-900 transition-colors hover:bg-[#e6c766]"
+            >
+              {s.heroCtaPrimary}
+            </Link>
+            <Link
+              href="/order"
+              className="inline-block rounded-full border border-stone-600 px-7 py-3 text-sm font-medium text-stone-100 transition-colors hover:bg-stone-800"
+            >
+              {s.orderCta}
+            </Link>
+          </div>
         </div>
       </section>
     </>
