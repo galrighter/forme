@@ -8,8 +8,11 @@
     "directory": ".open-next/assets",
     "binding": "ASSETS"
   },
+  // הדומיין הראשי של האתר. custom_domain דורש שה-zone rmjewel.com יהיה
+  // מחובר ל-Cloudflare (nameservers מצביעים אליו) — אחרת הדיפלוי ייכשל.
+  // www מומלץ להפנות ל-apex בעזרת Redirect Rule ב-Cloudflare.
   "routes": [
-    { "pattern": "studio.powdercoat.co.il", "custom_domain": true }
+    { "pattern": "rmjewel.com", "custom_domain": true }
   ],
   "observability": {
     "enabled": true

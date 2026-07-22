@@ -12,12 +12,12 @@
 - Made to order.
 
 ## Key pages
-- [Home](https://studio.powdercoat.co.il/): what forme is and how to start.
-- [How it works](https://studio.powdercoat.co.il/how-it-works): the four steps — describe, generate, production check, export.
-- [Gallery](https://studio.powdercoat.co.il/gallery): illustrative pattern styles.
-- [FAQ](https://studio.powdercoat.co.il/faq): material, sizes, ordering.
-- [Studio](https://studio.powdercoat.co.il/studio): the design tool itself.
-- [Contact](https://studio.powdercoat.co.il/contact): reach the team.
+- [Home](https://rmjewel.com/): what forme is and how to start.
+- [How it works](https://rmjewel.com/how-it-works): the four steps — describe, generate, production check, export.
+- [Gallery](https://rmjewel.com/gallery): illustrative pattern styles.
+- [FAQ](https://rmjewel.com/faq): material, sizes, ordering.
+- [Studio](https://rmjewel.com/studio): the design tool itself.
+- [Contact](https://rmjewel.com/contact): reach the team.
 
 ## Notes
 - Pricing and lead time are quoted per design on request.
