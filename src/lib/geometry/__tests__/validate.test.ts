@@ -13,13 +13,14 @@ describe("resolveFab", () => {
     const f = resolveFab(1.5, "bracelet");
     expect(f.minBridgeBend).toBe(2.25);
     expect(f.minHole).toBe(2.0);
-    expect(f.edgeMargin).toBe(3.0);
-    expect(f.endMargin).toBe(5.0);
+    // מדיניות שוליים מינימליים: מוגבל ל-1מ"מ קצה לאורך, 2מ"מ קצוות
+    expect(f.edgeMargin).toBe(1.0);
+    expect(f.endMargin).toBe(2.0);
   });
-  it("applies the ring edge margin override", () => {
+  it("applies the minimal margin policy for rings too", () => {
     const f = resolveFab(1.5, "ring");
     expect(f.minBridgeBend).toBe(3.75);
-    expect(f.edgeMargin).toBe(1.5);
+    expect(f.edgeMargin).toBe(1.0);
   });
   it("interpolates between thicknesses", () => {
     const f = resolveFab(1.75, "bracelet");

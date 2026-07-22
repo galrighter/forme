@@ -30,7 +30,7 @@ Output ONLY the laser-cut pattern as a single SVG and nothing else (no markdown,
 
 General guidance (approximate — exact sizes get fine-tuned automatically afterward, so favour beauty over caution):
 - Keep ALL the remaining metal connected as one piece; never fully enclose metal by a cut (it would fall out) — no closed rings/donuts or enclosed letter centers.
-- Leave a solid border of roughly ${r1(fab.edgeMargin)}mm along the two long edges and roughly ${r1(fab.endMargin)}mm at the two short ends.
+- Use the FULL width and length — let forms flow right up close to the edges (an undulating metal edge is great). Just don't let a cut touch the very border: keep a sliver of metal (about ${r1(fab.edgeMargin)}mm) at the long edges and a little more (about ${r1(fab.endMargin)}mm) at the two open ends so nothing is fragile.
 - Keep metal ribbons and openings a sensible few mm across — no hairlines.
 
 If the user wants text, don't draw letters; emit \`<text-request content="TEXT" x="80" y="7.5" height="6" align="middle"/>\` inside the cutouts layer (x,y = anchor, y = vertical center; align start/middle/end) and the system renders + auto-bridges it.

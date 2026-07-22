@@ -133,6 +133,12 @@ export function resolveFab(thicknessMm: number, product: ProductType): ResolvedF
     };
   }
 
+  // מדיניות שוליים מינימליים: פס הקצה לאורך X בטוח בכיפוף (דק ב-Y, ארוך ב-X),
+  // אז אין צורך ברצועה רחבה שחונקת את העיצוב לרוחב האמצע. משאירים רק פס דק
+  // כדי שהקצה לא יהיה שערה ושמלבן הייצוא יישאר תקין (חיתוכים לא נוגעים בגבול).
+  // חוזק/דקות אמיתיים נאכפים ע"י V10 (פרט מינימלי) ו-V4 (גשר).
+  const edgeMarginRaw = product === "ring" ? FAB.ringEdgeMarginOverride(thicknessMm) : c.edgeMargin;
+
   return {
     thicknessMm,
     product,
@@ -141,8 +147,8 @@ export function resolveFab(thicknessMm: number, product: ProductType): ResolvedF
     minSlot: c.minSlot,
     minBridgeCut: c.minBridgeCut,
     minBridgeBend: product === "ring" ? c.minBridgeBendRing : c.minBridgeBendBracelet,
-    edgeMargin: product === "ring" ? FAB.ringEdgeMarginOverride(thicknessMm) : c.edgeMargin,
-    endMargin: c.endMargin,
+    edgeMargin: Math.min(edgeMarginRaw, 1.0),
+    endMargin: Math.min(c.endMargin, 2.0),
     minInnerRadius: c.minInnerRadius,
     kFactor: c.kFactor,
     minFeature: FAB.minFeatureFactor * thicknessMm,
