@@ -45,6 +45,9 @@ class Settings:
     job_storage_dir: str = os.environ.get("JOB_STORAGE_DIR", "/tmp/raster-to-svg")
     job_ttl_minutes: int = _i("JOB_TTL_MINUTES", 60)
 
+    # optional bearer token; when set, /api/jobs* require Authorization: Bearer <token>
+    auth_token: str = os.environ.get("VECTORIZER_TOKEN", "")
+
 
 SETTINGS = Settings()
 

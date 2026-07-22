@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 
 from .. import pipeline
@@ -21,12 +21,21 @@ from ..storage.job_storage import STORE
 app = FastAPI(title="raster-to-svg vectorizer", version="0.1.0")
 
 
+def require_auth(authorization: str = Header(default="")) -> None:
+    """When VECTORIZER_TOKEN is configured, gate the job endpoints on a bearer token."""
+    if not SETTINGS.auth_token:
+        return
+    expected = f"Bearer {SETTINGS.auth_token}"
+    if authorization != expected:
+        raise HTTPException(401, detail={"error_code": "UNAUTHORIZED"})
+
+
 @app.get("/api/health")
 def health() -> dict:
     return {"status": "ok", "tracer_backend": SETTINGS.tracer_backend}
 
 
-@app.post("/api/jobs")
+@app.post("/api/jobs", dependencies=[Depends(require_auth)])
 async def create_job(
     image: UploadFile = File(...),
     width_mm: float = Form(...),
@@ -78,7 +87,7 @@ async def create_job(
     return JSONResponse(status_code=200, content=payload)
 
 
-@app.get("/api/jobs/{job_id}")
+@app.get("/api/jobs/{job_id}", dependencies=[Depends(require_auth)])
 def job_status(job_id: str) -> dict:
     rec = STORE.get(job_id)
     if rec is None:
@@ -91,7 +100,7 @@ def job_status(job_id: str) -> dict:
     }
 
 
-@app.get("/api/jobs/{job_id}/files/{filename}")
+@app.get("/api/jobs/{job_id}/files/{filename}", dependencies=[Depends(require_auth)])
 def job_file(job_id: str, filename: str) -> FileResponse:
     rec = STORE.get(job_id)
     if rec is None:
@@ -105,7 +114,7 @@ def job_file(job_id: str, filename: str) -> FileResponse:
     return FileResponse(path, media_type=media, filename=filename)
 
 
-@app.delete("/api/jobs/{job_id}")
+@app.delete("/api/jobs/{job_id}", dependencies=[Depends(require_auth)])
 def delete_job(job_id: str) -> dict:
     ok = STORE.delete(job_id)
     if not ok:

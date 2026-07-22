@@ -46,9 +46,23 @@ pytest -q
 
 ```bash
 docker build -t forme-vectorizer .
-docker run -p 8000:8000 forme-vectorizer
+docker run -p 8000:8000 -e VECTORIZER_TOKEN=some-secret forme-vectorizer
 curl localhost:8000/api/health
 ```
+
+### Automated deploy
+
+`.github/workflows/deploy-vectorizer.yml` SSHes into the Hetzner box, rsyncs
+`vectorizer/`, rebuilds the image, and restarts the container. It runs on pushes
+to `main` touching `vectorizer/**`, or via **workflow_dispatch**.
+
+Required repo secrets: `HETZNER_SSH` (private key), `HETZNER_HOST`, `HETZNER_USER`.
+Optional: `HETZNER_PORT` (default 22), `VECTORIZER_TOKEN` (bearer token gating the
+job endpoints — `/api/health` stays open). The box needs Docker installed.
+
+> The container publishes `:8000` on all interfaces, protected by the bearer
+> token. Put a TLS reverse proxy (Caddy/nginx) in front before production
+> traffic — a token over plain HTTP is fine for testing, not for real images.
 
 ## HTTP API
 

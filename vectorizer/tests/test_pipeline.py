@@ -96,3 +96,21 @@ def test_http_roundtrip(fixture_png: bytes) -> None:
     # path traversal / disallowed names are rejected
     assert client.get(f"/api/jobs/{job_id}/files/secret.txt").status_code == 404
     assert client.delete(f"/api/jobs/{job_id}").json()["deleted"] is True
+
+
+def test_auth_gate_when_token_set(fixture_png: bytes, monkeypatch) -> None:
+    from types import SimpleNamespace
+
+    from fastapi.testclient import TestClient
+
+    from app.api import main
+
+    monkeypatch.setattr(main, "SETTINGS", SimpleNamespace(auth_token="secret", tracer_backend="opencv", max_upload_mb=20))
+    client = TestClient(main.app)
+    files = {"image": ("f.png", fixture_png, "image/png")}
+    data = {"width_mm": "160", "height_mm": "15"}
+
+    assert client.post("/api/jobs", files=files, data=data).status_code == 401
+    ok = client.post("/api/jobs", files=files, data=data, headers={"Authorization": "Bearer secret"})
+    assert ok.status_code == 200
+    assert client.get("/api/health").status_code == 200  # health stays open
