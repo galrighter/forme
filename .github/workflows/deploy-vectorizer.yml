@@ -1,0 +1,88 @@
+name: Deploy Vectorizer to Hetzner
+
+# Builds and runs the raster-to-SVG vectorizer container on the Hetzner box.
+# Triggers on pushes to main that touch vectorizer/**, or manually.
+#
+# Required repository secrets:
+#   HETZNER_SSH   - the SSH *private key* for the deploy user
+#   HETZNER_HOST  - the server hostname or IP
+#   HETZNER_USER  - the SSH user (e.g. root or deploy)
+# Optional:
+#   HETZNER_PORT  - SSH port (defaults to 22)
+#
+# The box must have Docker installed and the deploy user able to run it.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "vectorizer/**"
+      - ".github/workflows/deploy-vectorizer.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-vectorizer
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up SSH
+        env:
+          SSH_KEY: ${{ secrets.HETZNER_SSH }}
+          HOST: ${{ secrets.HETZNER_HOST }}
+          PORT: ${{ secrets.HETZNER_PORT }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "${PORT:-22}" -H "$HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Copy vectorizer to server
+        env:
+          HOST: ${{ secrets.HETZNER_HOST }}
+          USER: ${{ secrets.HETZNER_USER }}
+          PORT: ${{ secrets.HETZNER_PORT }}
+        run: |
+          rsync -az --delete \
+            --exclude '.venv' --exclude '__pycache__' --exclude 'out' --exclude 'tmp' \
+            -e "ssh -i ~/.ssh/deploy_key -p ${PORT:-22}" \
+            vectorizer/ "$USER@$HOST:~/forme-vectorizer/"
+
+      - name: Build and run container
+        env:
+          HOST: ${{ secrets.HETZNER_HOST }}
+          USER: ${{ secrets.HETZNER_USER }}
+          PORT: ${{ secrets.HETZNER_PORT }}
+          VTOKEN: ${{ secrets.VECTORIZER_TOKEN }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -p "${PORT:-22}" "$USER@$HOST" "VTOKEN='$VTOKEN' bash -s" <<'REMOTE'
+          set -euo pipefail
+          # install Docker if the box doesn't have it yet
+          if ! command -v docker >/dev/null 2>&1; then
+            echo "Docker not found; installing via get.docker.com"
+            curl -fsSL https://get.docker.com | sh
+          fi
+          cd ~/forme-vectorizer
+          docker build -t forme-vectorizer .
+          docker rm -f forme-vectorizer 2>/dev/null || true
+          # published on all interfaces; the bearer token (VECTORIZER_TOKEN) gates the
+          # job endpoints. Put a TLS reverse proxy in front before production traffic.
+          docker run -d --name forme-vectorizer --restart unless-stopped \
+            -e VECTORIZER_TOKEN="${VTOKEN:-}" \
+            -p 8000:8000 forme-vectorizer
+          for i in $(seq 1 20); do
+            if curl -fsS http://127.0.0.1:8000/api/health >/dev/null 2>&1; then
+              echo "vectorizer healthy"; curl -s http://127.0.0.1:8000/api/health; exit 0
+            fi
+            sleep 2
+          done
+          echo "vectorizer failed health check"; docker logs --tail 50 forme-vectorizer; exit 1
+          REMOTE
+
+      - name: Clean up SSH key
+        if: always()
+        run: rm -f ~/.ssh/deploy_key
