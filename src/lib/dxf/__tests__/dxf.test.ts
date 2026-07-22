@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { buildDxf } from "../dxf";
 import { normalizeSvg } from "@/lib/geometry/normalize";
-import { FAB } from "@/lib/fabrication.config";
+import { difference, rectPolygon } from "@/lib/geometry/poly";
 
 function sampleDxf(): string {
   const svg =
@@ -13,12 +13,8 @@ function sampleDxf(): string {
     `<circle cx="40" cy="7.5" r="2"/><rect x="70" y="6" width="10" height="3" rx="1.5"/>` +
     `</g></svg>`;
   const n = normalizeSvg(svg, 160, 15);
-  return buildDxf({
-    lengthMm: 160,
-    widthMm: 15,
-    outerCornerRadiusMm: FAB.outerCornerRadiusMm,
-    cutUnion: n.cutUnion,
-  });
+  const material = difference([rectPolygon(0, 0, 160, 15)], n.cutUnion);
+  return buildDxf({ lengthMm: 160, widthMm: 15, material });
 }
 
 describe("buildDxf", () => {

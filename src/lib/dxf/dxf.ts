@@ -2,9 +2,9 @@ import type { MultiPolygon, Ring } from "@/lib/geometry/types";
 
 // כתיבת DXF ASCII ישירות (סעיף 10). פורמט AC1009 (R12) עם ישויות POLYLINE
 // קלאסיות — הערה: המפרט מציין LWPOLYLINE, אך LWPOLYLINE אינה קיימת ב-R12;
-// POLYLINE/VERTEX/SEQEND היא הצורה התקנית ב-R12 ונפתחת בכל תוכנת CAD
-// (LibreCAD, ezdxf, AutoCAD). קשתות פינת המלבן מיוצגות ב-bulge מדויק.
-// ללא פיצוי kerf (applyKerfCompensation=false — המכונה מפצה).
+// POLYLINE/VERTEX/SEQEND היא הצורה התקנית ב-R12 ונפתחת בכל תוכנת CAD.
+// הייצוא עוקב אחרי גבול המתכת האמיתי: הטבעת החיצונית של כל פוליגון = הפרופיל
+// (כולל קצה גלי אם חיתוך מגיע לקצה); טבעות פנימיות = חורים. ללא פיצוי kerf.
 
 interface DxfVertex {
   x: number;
@@ -29,27 +29,12 @@ function polylineEntity(layer: string, vertices: DxfVertex[]): string {
   return lines.join("\n");
 }
 
-/** מלבן הרצועה עם פינות מעוגלות ברדיוס r — קשתות bulge מדויקות (רבע עיגול) */
-function roundedRectVertices(L: number, W: number, r: number): DxfVertex[] {
-  const b = Math.tan(Math.PI / 8); // bulge לרבע עיגול (90°) בכיוון CCW
-  return [
-    { x: r, y: 0 },
-    { x: L - r, y: 0, bulge: b },
-    { x: L, y: r },
-    { x: L, y: W - r, bulge: b },
-    { x: L - r, y: W },
-    { x: r, y: W, bulge: b },
-    { x: 0, y: W - r },
-    { x: 0, y: r, bulge: b },
-  ];
-}
-
 export interface DxfInput {
   lengthMm: number;
   widthMm: number;
-  outerCornerRadiusMm: number;
-  /** הקונטורים הדגומים של איחוד ה-cutouts (סיבולת 0.05 מ"מ) */
-  cutUnion: MultiPolygon;
+  /** גבול המתכת האמיתי = difference(רצועה, איחוד החיתוכים). טבעת חיצונית=פרופיל,
+   *  טבעות פנימיות=חורים. תומך בקצה גלי כשחיתוך חוצה את הקצה. */
+  material: MultiPolygon;
 }
 
 /**
@@ -57,15 +42,16 @@ export interface DxfInput {
  * ייראה ב-CAD כמו בסטודיו.
  */
 export function buildDxf(input: DxfInput): string {
-  const { lengthMm: L, widthMm: W } = input;
+  const { lengthMm: L, widthMm: W, material } = input;
   const flipRing = (ring: Ring): DxfVertex[] => ring.map(([x, y]) => ({ x, y: W - y }));
 
   const entities: string[] = [];
-  entities.push(polylineEntity("OUTLINE", roundedRectVertices(L, W, input.outerCornerRadiusMm)));
-  for (const poly of input.cutUnion) {
-    for (const ring of poly) {
-      if (ring.length >= 3) entities.push(polylineEntity("CUTOUTS", flipRing(ring)));
-    }
+  for (const poly of material) {
+    poly.forEach((ring, ri) => {
+      if (ring.length < 3) return;
+      // ri===0 טבעת חיצונית = פרופיל הצמיד; שאר = חורים פנימיים
+      entities.push(polylineEntity(ri === 0 ? "OUTLINE" : "CUTOUTS", flipRing(ring)));
+    });
   }
 
   return [
@@ -91,12 +77,18 @@ export function buildDxf(input: DxfInput): string {
   ].join("\n") + "\n";
 }
 
-/** SVG ייצוא לצפייה: החוזה + מלבן חיצוני מעוגל */
-export function buildExportSvg(input: DxfInput, cutoutPathEls: string): string {
-  const { lengthMm: L, widthMm: W, outerCornerRadiusMm: r } = input;
+/** SVG ייצוא לצפייה: כל קווי החיתוך (פרופיל + חורים) כקווים אדומים דקים —
+ *  תצוגה מדויקת של מסלולי הלייזר, כולל קצה גלי. */
+export function buildExportSvg(input: DxfInput): string {
+  const { lengthMm: L, widthMm: W, material } = input;
+  const ringPath = (ring: Ring): string =>
+    ring.length ? "M" + ring.map(([x, y]) => `${F(x)} ${F(y)}`).join(" L") + " Z" : "";
+  const paths = material
+    .flatMap((poly) => poly)
+    .filter((ring) => ring.length >= 3)
+    .map((ring) => `<path d="${ringPath(ring)}" fill="none" stroke="red" stroke-width="0.1"/>`)
+    .join("");
   return (
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-1 -1 ${L + 2} ${W + 2}">` +
-    `<rect x="0" y="0" width="${L}" height="${W}" rx="${r}" ry="${r}" fill="none" stroke="red" stroke-width="0.1"/>` +
-    `<g id="cutouts">${cutoutPathEls}</g></svg>`
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-1 -1 ${L + 2} ${W + 2}">${paths}</svg>`
   );
 }

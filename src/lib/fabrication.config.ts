@@ -143,7 +143,8 @@ export function resolveFab(thicknessMm: number, product: ProductType): ResolvedF
     thicknessMm,
     product,
     kerf: c.kerf,
-    minHole: c.minHole,
+    // מדיניות גל: פתח מינימלי 0.5מ"מ (הלייזר יורד נמוך). שאר המגבלות הוסרו.
+    minHole: 0.5,
     minSlot: c.minSlot,
     minBridgeCut: c.minBridgeCut,
     minBridgeBend: product === "ring" ? c.minBridgeBendRing : c.minBridgeBendBracelet,

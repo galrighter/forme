@@ -1,6 +1,6 @@
 import { XMLParser } from "fast-xml-parser";
 import { samplePathToRings, ringToPathD } from "./paths";
-import { union, difference, ringArea, multiPolygonArea } from "./poly";
+import { union, difference, intersection, rectPolygon, ringArea, multiPolygonArea } from "./poly";
 import type { MultiPolygon, Polygon, Ring } from "./types";
 
 // נרמול SVG גולמי מה-LLM לפי החוזה (סעיף 5): פרסינג קפדני → המרת primitives
@@ -225,21 +225,6 @@ function pathToPolygons(d: string, index: number): MultiPolygon {
   return difference(solidMp, holeMp);
 }
 
-function checkBounds(mp: MultiPolygon, L: number, W: number, index: number) {
-  const eps = 0.011; // סובלנות עיגול לדיוק 3 ספרות
-  for (const poly of mp) {
-    for (const ring of poly) {
-      for (const [x, y] of ring) {
-        if (x < -eps || x > L + eps || y < -eps || y > W + eps) {
-          throw new ContractViolation(
-            `Cutout #${index + 1}: point (${x.toFixed(2)}, ${y.toFixed(2)}) is outside the viewBox 0 0 ${L} ${W}`,
-          );
-        }
-      }
-    }
-  }
-}
-
 const fmt = (v: number) => {
   const r = Math.round(v * 1000) / 1000;
   return Object.is(r, -0) ? "0" : String(r);
@@ -260,23 +245,29 @@ export function normalizeSvg(rawSvg: string, lengthMm: number, widthMm: number):
   const root = parseXml(cleaned);
   const ds = extractCutoutPaths(root, lengthMm, widthMm);
 
-  const cutouts: MultiPolygon[] = ds.map((d, i) => {
-    const mp = pathToPolygons(d, i);
-    checkBounds(mp, lengthMm, widthMm, i);
-    return mp;
-  });
+  // חיתוך כל cutout לתוך מלבן הרצועה במקום לדחות "מחוץ לגבול" — כך חיתוך שחוצה
+  // את הקצה פשוט מסיר חומר בקצה ונוצר קצה גלי (מבוקש). חיתוך מחוץ לגמרי נושר.
+  const strip: MultiPolygon = [rectPolygon(0, 0, lengthMm, widthMm)];
+  const rawCutouts = ds.map((d, i) => pathToPolygons(d, i));
+  let wasClipped = false;
+  const cutouts: MultiPolygon[] = [];
+  for (const mp of rawCutouts) {
+    const clipped = intersection(mp, strip);
+    if (Math.abs(multiPolygonArea(clipped) - multiPolygonArea(mp)) > 1e-3) wasClipped = true;
+    if (multiPolygonArea(clipped) > 1e-9) cutouts.push(clipped);
+  }
 
   const cutUnion = union(...cutouts);
 
-  // זיהוי חפיפות: אם סכום השטחים שונה משטח האיחוד — יש חפיפה, ופולטים
-  // את האיחוד כפוליגונים דגומים. אחרת שומרים את ה-d המקוריים (משמר עקומות).
+  // זיהוי חפיפות: אם סכום השטחים שונה משטח האיחוד — יש חפיפה. אם היה חיתוך לגבול
+  // או חפיפה — פולטים את האיחוד כפוליגונים דגומים; אחרת שומרים את ה-d המקוריים.
   const sumArea = cutouts.reduce((s, c) => s + multiPolygonArea(c), 0);
   const unionArea = multiPolygonArea(cutUnion);
   const overlapping = Math.abs(sumArea - unionArea) > 1e-3;
 
   let pathEls: string[];
   let outCutouts: MultiPolygon[];
-  if (overlapping) {
+  if (overlapping || wasClipped) {
     pathEls = cutUnion.map((poly) => `<path d="${polygonToPathD(poly)}" fill="black"/>`);
     outCutouts = cutUnion.map((poly) => [poly]);
   } else {
