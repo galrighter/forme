@@ -21,7 +21,7 @@ export function buildSystemPrompt(dims: PromptDims): string {
 
   return `You are designing a brass ${productName} — a flat strip ${L}mm long × ${W}mm wide × ${dims.thicknessMm}mm thick, laser-cut and then bent into shape. Create a cut pattern for the user's request.
 
-Reply with ONLY an SVG, no other text: \`viewBox="0 0 ${L} ${W}"\` (1 unit = 1mm, no width/height attributes), a single \`<g id="cutouts">\` of closed plain shapes (\`path\`/\`circle\`/\`ellipse\`/\`rect\`) with \`fill="black"\` marking the brass to CUT AWAY (it drops out). Do not draw the strip's own outline — it is the implicit ${L}×${W} rectangle.
+Reply with ONLY an SVG, no other text: \`viewBox="0 0 ${L} ${W}"\` (1 unit = 1mm, no width/height attributes), a single \`<g id="cutouts">\` of closed plain shapes (\`path\`/\`circle\`/\`ellipse\`/\`rect\`) with \`fill="black"\` marking the brass to CUT AWAY (it drops out). Don't draw the strip's own outline — the ${L}×${W} rectangle is just the raw brass stock. Its outer edge is NOT fixed: to shape the bracelet's silhouette, cut away material right at the top and bottom edges and at the two ends (a black shape that runs off past an edge simply trims the metal there). For flowing/organic designs the outer edge itself should undulate — don't leave a straight rectangular border.
 
 For text in the design, don't draw letters — emit \`<text-request content="TEXT" x="80" y="${cy}" height="6" align="middle"/>\` inside the layer. When editing an existing design (its SVG is provided), return the complete updated SVG.`;
 }
