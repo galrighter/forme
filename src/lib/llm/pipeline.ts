@@ -4,10 +4,7 @@ import type { NormalizedDesign } from "@/lib/geometry/normalize";
 import type { ValidationReport } from "@/lib/geometry/types";
 import { callLlm } from "./client";
 import type { LlmImage, LlmReply } from "./core";
-import {
-  buildSystemPrompt, buildGenerateUserText, buildRepairUserText,
-  buildConceptPrompt, buildConceptUserText, type PromptDims,
-} from "./prompts";
+import { buildSystemPrompt, buildGenerateUserText, buildRepairUserText, type PromptDims } from "./prompts";
 import { convertTextRequests } from "@/lib/text/textToPath";
 
 // לולאת יצירה + תיקון אוטומטית — סעיף 6.3:
@@ -40,27 +37,10 @@ export async function runGeneratePipeline(opts: {
   };
   const baseSource = opts.currentSvg ? "edit" : "generate";
 
-  // שלב 1 — רעיון עיצובי טהור (רק ביצירה חדשה; בעריכה משמרים את הקיים).
-  // אם שלב הרעיון נכשל, ממשיכים בלעדיו — לא מפילים את היצירה.
-  let concept: string | null = null;
-  if (!opts.currentSvg) {
-    try {
-      const c = await callLlm({
-        system: buildConceptPrompt(opts.dims),
-        userText: buildConceptUserText(opts.userPrompt, opts.hasInspiration),
-        images: opts.images, // ביצירה חדשה התמונות הן השראה בלבד
-        maxTokens: 1200,
-      });
-      concept = c.text.trim() || null;
-    } catch {
-      concept = null;
-    }
-  }
-
-  // שלב 2 — מימוש הרעיון כ-SVG חוקי
+  // יצירה בפרומפט כללי קצר; חריגות מטופלות בלולאת התיקון שלמטה.
   let reply = await callLlm({
     system,
-    userText: buildGenerateUserText(opts.userPrompt, opts.currentSvg, opts.hasAnnotation, opts.hasInspiration, concept),
+    userText: buildGenerateUserText(opts.userPrompt, opts.currentSvg, opts.hasAnnotation, opts.hasInspiration),
     images: opts.images,
   });
   let raw = reply.text;
