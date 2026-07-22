@@ -178,6 +178,9 @@ export function validateNormalized(n: NormalizedDesign, dims: DesignDims): Valid
       for (const poly of cut) {
         const eroded = offset([poly], -fab.minHole / 2);
         if (multiPolygonArea(eroded) < AREA_EPS) continue; // כבר נתפס ב-V5
+        // "חריץ" = תעלה צרה בין דפנות בתוך cutout. לצורה קמורה אין חריץ פנימי —
+        // ההצטמצמות שלה היא רק הזנב המחודד (נשלט ע"י V5 בגודל ו-V9 בחדות). דלג.
+        if (poly.length === 1 && isConvexRing(poly[0])) continue;
         const opened = morphologicalOpen([poly], fab.minSlot / 2);
         const lost = difference([poly], opened).filter((p) => polygonArea(p) > 0.25);
         for (const p of lost) {
@@ -294,6 +297,25 @@ export function validateNormalized(n: NormalizedDesign, dims: DesignDims): Valid
 
 type Pt = [number, number];
 
+/** האם טבעת קמורה? (כל הפניות באותו כיוון, עם סובלנות לרעש דגימה). צורה קמורה
+ *  כמו אליפסה/מלבן אין בה חריץ פנימי — רק התכנסות טבעית של הגבול. */
+function isConvexRing(ring: readonly Pt[]): boolean {
+  const n = ring.length;
+  if (n < 4) return true;
+  let pos = 0, neg = 0;
+  for (let i = 0; i < n; i++) {
+    const a = ring[i], b = ring[(i + 1) % n], c = ring[(i + 2) % n];
+    const e1x = b[0] - a[0], e1y = b[1] - a[1];
+    const e2x = c[0] - b[0], e2y = c[1] - b[1];
+    const l1 = Math.hypot(e1x, e1y), l2 = Math.hypot(e2x, e2y);
+    if (l1 < 1e-9 || l2 < 1e-9) continue;
+    const cross = (e1x * e2y - e1y * e2x) / (l1 * l2);
+    if (cross > 0.05) pos++;
+    else if (cross < -0.05) neg++;
+  }
+  return pos === 0 || neg === 0;
+}
+
 /** חיתוכי scanline אופקי בגובה y עם כל הצלעות של material — מוחזרים ערכי x ממוינים.
  *  זוגות עוקבים [x0,x1],[x2,x3]... הם רצפי המתכת (כלל even-odd). */
 function scanlineXs(material: MultiPolygon, y: number): number[] {
@@ -372,7 +394,8 @@ function walkArc(ring: readonly Pt[], i: number, dir: 1 | -1, targetLen: number)
  *  חלקה ברדיוס ≥ minRadius נותנת רדיוס-חוסם ≥ minRadius ולכן עוברת; פינה זוויתית
  *  אמיתית (רדיוס ~0) נותנת רדיוס קטן ונתפסת. */
 function findSharpCorners(material: MultiPolygon, _minAngleDeg: number, minRadiusMm: number): ValidationLocation[] {
-  const locs: ValidationLocation[] = [];
+  // מועמדים: כל קודקוד חד, עם רדיוס וכיוון החוד לתוך המתכת (dx,dy).
+  const cand: { x: number; y: number; r: number; dx: number; dy: number }[] = [];
   const win = Math.max(minRadiusMm, 0.35); // חלון קשת מכל צד של הקודקוד
   for (const poly of material) {
     // טבעות פנימיות בלבד = גבולות cutouts (הקונטור החיצוני הוא מלבן הרצועה)
@@ -390,22 +413,29 @@ function findSharpCorners(material: MultiPolygon, _minAngleDeg: number, minRadiu
         if (l1 < 1e-9 || l2 < 1e-9) continue;
         const dot = (v1[0] * v2[0] + v1[1] * v2[1]) / (l1 * l2);
         const angleDeg = (Math.acos(Math.min(1, Math.max(-1, dot))) * 180) / Math.PI;
-        // קודקוד כמעט-ישר (פנייה זניחה) — אין פינה, דלג
-        if (angleDeg > 150) continue;
+        if (angleDeg > 150) continue; // כמעט-ישר — אין פינה
         const r = circumradius(a, b, c);
-        // r===null => שלוש נקודות קולינאריות (קו ישר) => לא פינה
-        if (r !== null && r < minRadiusMm) {
-          locs.push({ x: b[0], y: b[1], r: 1.5 });
-        }
+        if (r === null || r >= minRadiusMm) continue;
+        // כיוון החוד לתוך המתכת (מנוגד לחוצה-הזווית של פנים ה-cutout)
+        let dx = -(v1[0] / l1 + v2[0] / l2);
+        let dy = -(v1[1] / l1 + v2[1] / l2);
+        const dl = Math.hypot(dx, dy) || 1;
+        cand.push({ x: b[0], y: b[1], r, dx: dx / dl, dy: dy / dl });
       }
     }
   }
-  // סינון כפילויות קרובות (בתוך 1.5 מ"מ) — קודקודים סמוכים על אותה פינה
-  const filtered: ValidationLocation[] = [];
-  for (const l of locs) {
-    if (!filtered.some((f) => Math.hypot(f.x - l.x, f.y - l.y) < 1.5)) filtered.push(l);
+  // אשכול קודקודים על אותה פינה (בתוך 1.5 מ"מ) ובחירת הקודקוד החד ביותר (הקודקוד
+  // האמיתי) לכל אשכול — שם כיוון החוד יציב. הכיפוף מותח ב-X, לכן חוד שמצביע
+  // ~לאורך X (מקביל למתיחה) אינו מרכז מאמץ; המאמץ מתרכז בקצוות הניצבים למתיחה.
+  const clusters: { x: number; y: number; r: number; dx: number; dy: number }[] = [];
+  for (const p of cand) {
+    const c = clusters.find((c) => Math.hypot(c.x - p.x, c.y - p.y) < 1.5);
+    if (c) { if (p.r < c.r) { c.x = p.x; c.y = p.y; c.r = p.r; c.dx = p.dx; c.dy = p.dy; } }
+    else clusters.push({ ...p });
   }
-  return filtered;
+  return clusters
+    .filter((c) => Math.abs(c.dx) <= 0.87) // בתוך ~30° מציר X → חוד בטוח, דלג
+    .map((c) => ({ x: c.x, y: c.y, r: 1.5 }));
 }
 
 function circumradius(a: [number, number], b: [number, number], c: [number, number]): number | null {

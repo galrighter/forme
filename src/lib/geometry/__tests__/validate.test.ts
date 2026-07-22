@@ -148,8 +148,16 @@ describe("validateDesign", () => {
     expect(report.checks.find((c) => c.check === "V9")!.status).toBe("pass");
   });
 
-  it("V9: flags a genuinely sharp angular notch", () => {
-    // מלבן חיתוך עם פינות ישרות (90°, רדיוס ~0) — פינות פנימיות חדות אמיתיות
+  it("V9+V6: a flat ellipse with axial sharp tips passes (tips along the bend axis)", () => {
+    // בדיוק המקרה של גל: rx=5, ry=1.2 — קצוות חדים (רדיוס ~0.29מ"מ) אך מצביעים
+    // לאורך X (מקבילים למתיחת הכיפוף) → לא מסוכנים. וגם קמור → אין חריץ (V6).
+    const { report } = validateDesign(svg(`<ellipse cx="80" cy="7.5" rx="5" ry="1.2"/>`), DIMS);
+    expect(report.checks.find((c) => c.check === "V9")!.status).toBe("pass");
+    expect(report.checks.find((c) => c.check === "V6")!.status).toBe("pass");
+  });
+
+  it("V9: flags a genuinely sharp angular notch (corner across the bend axis)", () => {
+    // מלבן חיתוך עם פינות ישרות (90°, רדיוס ~0) — חוד ב-45°, לא מקביל ל-X
     const { report } = validateDesign(svg(`<rect x="76" y="5" width="8" height="5"/>`), DIMS);
     expect(report.checks.find((c) => c.check === "V9")!.status).toBe("warn");
   });
