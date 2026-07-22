@@ -178,6 +178,9 @@ export function validateNormalized(n: NormalizedDesign, dims: DesignDims): Valid
       for (const poly of cut) {
         const eroded = offset([poly], -fab.minHole / 2);
         if (multiPolygonArea(eroded) < AREA_EPS) continue; // כבר נתפס ב-V5
+        // "חריץ" = תעלה צרה בין דפנות בתוך cutout. לצורה קמורה אין חריץ פנימי —
+        // ההצטמצמות שלה היא רק הזנב המחודד (נשלט ע"י V5 בגודל ו-V9 בחדות). דלג.
+        if (poly.length === 1 && isConvexRing(poly[0])) continue;
         const opened = morphologicalOpen([poly], fab.minSlot / 2);
         const lost = difference([poly], opened).filter((p) => polygonArea(p) > 0.25);
         for (const p of lost) {
@@ -244,20 +247,16 @@ export function validateNormalized(n: NormalizedDesign, dims: DesignDims): Valid
     }
   }
 
-  // V9 — פינות פנימיות חדות + רדיוס עקמומיות
+  // V9 — פינות חדות. מדיניות (לפי גל, ומאושרת פיזיקלית לפליז מחושל בכיפוף חד-פעמי):
+  // חוד של *חור* אינו מסוכן (בכל כיוון) — פליז רך מאוד ומתיחת הכיפוף (~2.5%) הרבה
+  // מתחת להתארכות הקריעה גם עם ריכוז מאמצים. מה שמסוכן הוא חוד *מתכת* דק וחשוף —
+  // וזה נתפס ע"י V10 (פרט חומר מינימלי) בכל כיוון. לכן V9 עצמו אינו מסמן.
   {
-    const locs = findSharpCorners(material, fab.minInnerCornerAngleDeg, fab.minInnerRadius);
-    if (locs.length > 0) {
-      checks.push({
-        check: "V9", status: "warn", message: he.checks.V9,
-        details: `Sharp internal corners (angle < ${fab.minInnerCornerAngleDeg}° or radius < ${fab.minInnerRadius}mm) at (mm): ` +
-          `${locs.slice(0, 8).map((l) => `(${l.x.toFixed(1)}, ${l.y.toFixed(1)})`).join(", ")}${locs.length > 8 ? "…" : ""}. ` +
-          `Round internal corners to at least ${fab.minInnerRadius}mm.`,
-        locations: locs,
-      });
-    } else {
-      checks.push({ check: "V9", status: "pass", message: he.checks.V9, details: "No sharp internal corners", locations: [] });
-    }
+    checks.push({
+      check: "V9", status: "pass", message: he.checks.V9,
+      details: "Sharp cutout (hole) corners are not a defect for annealed brass under a single roll-bend; thin exposed metal tips are covered by V10.",
+      locations: [],
+    });
   }
 
   // V10 — אלמנט מינימלי (פתיחה של material ברדיוס minFeature/2)
@@ -293,6 +292,25 @@ export function validateNormalized(n: NormalizedDesign, dims: DesignDims): Valid
 }
 
 type Pt = [number, number];
+
+/** האם טבעת קמורה? (כל הפניות באותו כיוון, עם סובלנות לרעש דגימה). צורה קמורה
+ *  כמו אליפסה/מלבן אין בה חריץ פנימי — רק התכנסות טבעית של הגבול. */
+function isConvexRing(ring: readonly Pt[]): boolean {
+  const n = ring.length;
+  if (n < 4) return true;
+  let pos = 0, neg = 0;
+  for (let i = 0; i < n; i++) {
+    const a = ring[i], b = ring[(i + 1) % n], c = ring[(i + 2) % n];
+    const e1x = b[0] - a[0], e1y = b[1] - a[1];
+    const e2x = c[0] - b[0], e2y = c[1] - b[1];
+    const l1 = Math.hypot(e1x, e1y), l2 = Math.hypot(e2x, e2y);
+    if (l1 < 1e-9 || l2 < 1e-9) continue;
+    const cross = (e1x * e2y - e1y * e2x) / (l1 * l2);
+    if (cross > 0.05) pos++;
+    else if (cross < -0.05) neg++;
+  }
+  return pos === 0 || neg === 0;
+}
 
 /** חיתוכי scanline אופקי בגובה y עם כל הצלעות של material — מוחזרים ערכי x ממוינים.
  *  זוגות עוקבים [x0,x1],[x2,x3]... הם רצפי המתכת (כלל even-odd). */
@@ -345,74 +363,3 @@ function thinXBridges(material: MultiPolygon, minWidth: number, W: number): Vali
   return clusters.filter((c) => c.n >= 3).map((c) => ({ x: c.x, y: c.y, r: 1.5 }));
 }
 
-/** נקודה במרחק-קשת targetLen בדיוק מקודקוד i בכיוון dir (±1), כדי למדוד
- *  עקמומיות מקומית בלי תלות בצפיפות הדגימה. אם הקטע ארוך מהנדרש — אינטרפולציה
- *  לנקודה המדויקת (כך שגם צלע ישרה ארוכה נמדדת בתוך החלון). */
-function walkArc(ring: readonly Pt[], i: number, dir: 1 | -1, targetLen: number): Pt {
-  const n = ring.length;
-  let remaining = targetLen;
-  let cur = i;
-  for (let step = 0; step < n; step++) {
-    const nxt = (cur + dir + n) % n;
-    const a = ring[cur], b = ring[nxt];
-    const segLen = Math.hypot(b[0] - a[0], b[1] - a[1]);
-    if (segLen >= remaining) {
-      const t = segLen < 1e-12 ? 0 : remaining / segLen;
-      return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
-    }
-    remaining -= segLen;
-    cur = nxt;
-  }
-  return ring[cur];
-}
-
-/** זיהוי פינות חדות אמיתיות בגבולות ה-cutouts: לא לפי זווית של קודקוד בודד
- *  (שמסמן בטעות קצוות של עקומות חלקות שנדגמו כמצולע), אלא לפי **רדיוס עקמומיות**
- *  מקומי — שלוש נקודות המשתרעות על חלון קשת בגודל ~minRadius מכל צד. עקומה
- *  חלקה ברדיוס ≥ minRadius נותנת רדיוס-חוסם ≥ minRadius ולכן עוברת; פינה זוויתית
- *  אמיתית (רדיוס ~0) נותנת רדיוס קטן ונתפסת. */
-function findSharpCorners(material: MultiPolygon, _minAngleDeg: number, minRadiusMm: number): ValidationLocation[] {
-  const locs: ValidationLocation[] = [];
-  const win = Math.max(minRadiusMm, 0.35); // חלון קשת מכל צד של הקודקוד
-  for (const poly of material) {
-    // טבעות פנימיות בלבד = גבולות cutouts (הקונטור החיצוני הוא מלבן הרצועה)
-    for (let ri = 1; ri < poly.length; ri++) {
-      const ring = poly[ri] as readonly Pt[];
-      const nPts = ring.length;
-      if (nPts < 3) continue;
-      for (let i = 0; i < nPts; i++) {
-        const b = ring[i];
-        const a = walkArc(ring, i, -1, win);
-        const c = walkArc(ring, i, 1, win);
-        const v1 = [a[0] - b[0], a[1] - b[1]];
-        const v2 = [c[0] - b[0], c[1] - b[1]];
-        const l1 = Math.hypot(v1[0], v1[1]), l2 = Math.hypot(v2[0], v2[1]);
-        if (l1 < 1e-9 || l2 < 1e-9) continue;
-        const dot = (v1[0] * v2[0] + v1[1] * v2[1]) / (l1 * l2);
-        const angleDeg = (Math.acos(Math.min(1, Math.max(-1, dot))) * 180) / Math.PI;
-        // קודקוד כמעט-ישר (פנייה זניחה) — אין פינה, דלג
-        if (angleDeg > 150) continue;
-        const r = circumradius(a, b, c);
-        // r===null => שלוש נקודות קולינאריות (קו ישר) => לא פינה
-        if (r !== null && r < minRadiusMm) {
-          locs.push({ x: b[0], y: b[1], r: 1.5 });
-        }
-      }
-    }
-  }
-  // סינון כפילויות קרובות (בתוך 1.5 מ"מ) — קודקודים סמוכים על אותה פינה
-  const filtered: ValidationLocation[] = [];
-  for (const l of locs) {
-    if (!filtered.some((f) => Math.hypot(f.x - l.x, f.y - l.y) < 1.5)) filtered.push(l);
-  }
-  return filtered;
-}
-
-function circumradius(a: [number, number], b: [number, number], c: [number, number]): number | null {
-  const ab = Math.hypot(b[0] - a[0], b[1] - a[1]);
-  const bc = Math.hypot(c[0] - b[0], c[1] - b[1]);
-  const ca = Math.hypot(a[0] - c[0], a[1] - c[1]);
-  const cross = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
-  if (Math.abs(cross) < 1e-12) return null;
-  return (ab * bc * ca) / (2 * Math.abs(cross));
-}

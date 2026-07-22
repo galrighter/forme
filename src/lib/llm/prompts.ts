@@ -59,7 +59,7 @@ So the usable design region is x from ${r1(fab.endMargin)} to ${r1(L - fab.endMa
 - Distribute cutouts evenly along X so the strip bends into a smooth arc; avoid concentrating open area in one zone.
 - No hairline strokes. A cutout is a shape with real area, not a 1mm line. Hit the target minimums above — openings ≈ ${r1(fab.minHole * safety)}mm, bridges ≈ ${r1(fab.minBridgeBend * safety)}mm across their narrow dimension — and stay near those targets, do NOT balloon everything much wider; balanced, proportioned widths read as jewelry.
 - A thin metal bridge only risks tearing in roll-bending when it is thin ALONG X (the bending/circumference axis). A band that is thin in Y but runs long along X is safe. Prefer the latter for flowing motifs.
-- Round every cutout corner to a real radius (≥ ${r1(fab.minInnerRadius)}mm); no pointed tips or angular notches.
+- Pointed tips OF A CUTOUT (a hole coming to a point) are fine — brass is ductile. What to avoid is a thin, pointed, unsupported sliver OF METAL (a spike thinner than ${r1(fab.minFeature)}mm): keep the remaining metal at least ${r1(fab.minFeature)}mm thick everywhere.
 
 ## AESTHETIC PRINCIPLES — apply these DEFAULTS unless the user explicitly asks otherwise
 This is jewelry: the goal is an elegant, deliberate composition, not a perforated sheet.

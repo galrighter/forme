@@ -113,21 +113,26 @@ export function FlatCanvas() {
       const [a, b] = [...pointers.current.values()];
       const dist = Math.hypot(a.x - b.x, a.y - b.y);
       const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-      setView((v) => {
-        if (!v || !g.pinchDist || !g.pinchMid) return v;
-        const r = containerRef.current!.getBoundingClientRect();
-        const factor = dist / g.pinchDist;
-        const scale = Math.min(200, Math.max(0.5, v.scale * factor));
-        const f = scale / v.scale;
-        const mx = g.pinchMid.x - r.left, my = g.pinchMid.y - r.top;
-        return {
-          scale,
-          tx: mx - (mx - v.tx) * f + (mid.x - g.pinchMid.x),
-          ty: my - (my - v.ty) * f + (mid.y - g.pinchMid.y),
-        };
-      });
+      // חשוב: לוכדים את הערכים הקודמים לפני הדריסה. קריאה מתוך setView (שרץ
+      // מאוחר יותר) הייתה קוראת את הערך שכבר נדרס → factor שגוי/הפוך.
+      const prevDist = g.pinchDist;
+      const prevMid = g.pinchMid;
       g.pinchDist = dist;
       g.pinchMid = mid;
+      if (!prevDist || !prevMid) return;
+      setView((v) => {
+        if (!v) return v;
+        const r = containerRef.current!.getBoundingClientRect();
+        const factor = dist / prevDist;
+        const scale = Math.min(200, Math.max(0.5, v.scale * factor));
+        const f = scale / v.scale;
+        const mx = prevMid.x - r.left, my = prevMid.y - r.top;
+        return {
+          scale,
+          tx: mx - (mx - v.tx) * f + (mid.x - prevMid.x),
+          ty: my - (my - v.ty) * f + (mid.y - prevMid.y),
+        };
+      });
       return;
     }
     if (g.mode === "pan" && g.last) {
