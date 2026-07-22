@@ -247,20 +247,16 @@ export function validateNormalized(n: NormalizedDesign, dims: DesignDims): Valid
     }
   }
 
-  // V9 — פינות פנימיות חדות + רדיוס עקמומיות
+  // V9 — פינות חדות. מדיניות (לפי גל, ומאושרת פיזיקלית לפליז מחושל בכיפוף חד-פעמי):
+  // חוד של *חור* אינו מסוכן (בכל כיוון) — פליז רך מאוד ומתיחת הכיפוף (~2.5%) הרבה
+  // מתחת להתארכות הקריעה גם עם ריכוז מאמצים. מה שמסוכן הוא חוד *מתכת* דק וחשוף —
+  // וזה נתפס ע"י V10 (פרט חומר מינימלי) בכל כיוון. לכן V9 עצמו אינו מסמן.
   {
-    const locs = findSharpCorners(material, fab.minInnerCornerAngleDeg, fab.minInnerRadius);
-    if (locs.length > 0) {
-      checks.push({
-        check: "V9", status: "warn", message: he.checks.V9,
-        details: `Sharp internal corners (angle < ${fab.minInnerCornerAngleDeg}° or radius < ${fab.minInnerRadius}mm) at (mm): ` +
-          `${locs.slice(0, 8).map((l) => `(${l.x.toFixed(1)}, ${l.y.toFixed(1)})`).join(", ")}${locs.length > 8 ? "…" : ""}. ` +
-          `Round internal corners to at least ${fab.minInnerRadius}mm.`,
-        locations: locs,
-      });
-    } else {
-      checks.push({ check: "V9", status: "pass", message: he.checks.V9, details: "No sharp internal corners", locations: [] });
-    }
+    checks.push({
+      check: "V9", status: "pass", message: he.checks.V9,
+      details: "Sharp cutout (hole) corners are not a defect for annealed brass under a single roll-bend; thin exposed metal tips are covered by V10.",
+      locations: [],
+    });
   }
 
   // V10 — אלמנט מינימלי (פתיחה של material ברדיוס minFeature/2)
@@ -367,82 +363,3 @@ function thinXBridges(material: MultiPolygon, minWidth: number, W: number): Vali
   return clusters.filter((c) => c.n >= 3).map((c) => ({ x: c.x, y: c.y, r: 1.5 }));
 }
 
-/** נקודה במרחק-קשת targetLen בדיוק מקודקוד i בכיוון dir (±1), כדי למדוד
- *  עקמומיות מקומית בלי תלות בצפיפות הדגימה. אם הקטע ארוך מהנדרש — אינטרפולציה
- *  לנקודה המדויקת (כך שגם צלע ישרה ארוכה נמדדת בתוך החלון). */
-function walkArc(ring: readonly Pt[], i: number, dir: 1 | -1, targetLen: number): Pt {
-  const n = ring.length;
-  let remaining = targetLen;
-  let cur = i;
-  for (let step = 0; step < n; step++) {
-    const nxt = (cur + dir + n) % n;
-    const a = ring[cur], b = ring[nxt];
-    const segLen = Math.hypot(b[0] - a[0], b[1] - a[1]);
-    if (segLen >= remaining) {
-      const t = segLen < 1e-12 ? 0 : remaining / segLen;
-      return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
-    }
-    remaining -= segLen;
-    cur = nxt;
-  }
-  return ring[cur];
-}
-
-/** זיהוי פינות חדות אמיתיות בגבולות ה-cutouts: לא לפי זווית של קודקוד בודד
- *  (שמסמן בטעות קצוות של עקומות חלקות שנדגמו כמצולע), אלא לפי **רדיוס עקמומיות**
- *  מקומי — שלוש נקודות המשתרעות על חלון קשת בגודל ~minRadius מכל צד. עקומה
- *  חלקה ברדיוס ≥ minRadius נותנת רדיוס-חוסם ≥ minRadius ולכן עוברת; פינה זוויתית
- *  אמיתית (רדיוס ~0) נותנת רדיוס קטן ונתפסת. */
-function findSharpCorners(material: MultiPolygon, _minAngleDeg: number, minRadiusMm: number): ValidationLocation[] {
-  // מועמדים: כל קודקוד חד, עם רדיוס וכיוון החוד לתוך המתכת (dx,dy).
-  const cand: { x: number; y: number; r: number; dx: number; dy: number }[] = [];
-  const win = Math.max(minRadiusMm, 0.35); // חלון קשת מכל צד של הקודקוד
-  for (const poly of material) {
-    // טבעות פנימיות בלבד = גבולות cutouts (הקונטור החיצוני הוא מלבן הרצועה)
-    for (let ri = 1; ri < poly.length; ri++) {
-      const ring = poly[ri] as readonly Pt[];
-      const nPts = ring.length;
-      if (nPts < 3) continue;
-      for (let i = 0; i < nPts; i++) {
-        const b = ring[i];
-        const a = walkArc(ring, i, -1, win);
-        const c = walkArc(ring, i, 1, win);
-        const v1 = [a[0] - b[0], a[1] - b[1]];
-        const v2 = [c[0] - b[0], c[1] - b[1]];
-        const l1 = Math.hypot(v1[0], v1[1]), l2 = Math.hypot(v2[0], v2[1]);
-        if (l1 < 1e-9 || l2 < 1e-9) continue;
-        const dot = (v1[0] * v2[0] + v1[1] * v2[1]) / (l1 * l2);
-        const angleDeg = (Math.acos(Math.min(1, Math.max(-1, dot))) * 180) / Math.PI;
-        if (angleDeg > 150) continue; // כמעט-ישר — אין פינה
-        const r = circumradius(a, b, c);
-        if (r === null || r >= minRadiusMm) continue;
-        // כיוון החוד לתוך המתכת (מנוגד לחוצה-הזווית של פנים ה-cutout)
-        let dx = -(v1[0] / l1 + v2[0] / l2);
-        let dy = -(v1[1] / l1 + v2[1] / l2);
-        const dl = Math.hypot(dx, dy) || 1;
-        cand.push({ x: b[0], y: b[1], r, dx: dx / dl, dy: dy / dl });
-      }
-    }
-  }
-  // אשכול קודקודים על אותה פינה (בתוך 1.5 מ"מ) ובחירת הקודקוד החד ביותר (הקודקוד
-  // האמיתי) לכל אשכול — שם כיוון החוד יציב. הכיפוף מותח ב-X, לכן חוד שמצביע
-  // ~לאורך X (מקביל למתיחה) אינו מרכז מאמץ; המאמץ מתרכז בקצוות הניצבים למתיחה.
-  const clusters: { x: number; y: number; r: number; dx: number; dy: number }[] = [];
-  for (const p of cand) {
-    const c = clusters.find((c) => Math.hypot(c.x - p.x, c.y - p.y) < 1.5);
-    if (c) { if (p.r < c.r) { c.x = p.x; c.y = p.y; c.r = p.r; c.dx = p.dx; c.dy = p.dy; } }
-    else clusters.push({ ...p });
-  }
-  return clusters
-    .filter((c) => Math.abs(c.dx) <= 0.87) // בתוך ~30° מציר X → חוד בטוח, דלג
-    .map((c) => ({ x: c.x, y: c.y, r: 1.5 }));
-}
-
-function circumradius(a: [number, number], b: [number, number], c: [number, number]): number | null {
-  const ab = Math.hypot(b[0] - a[0], b[1] - a[1]);
-  const bc = Math.hypot(c[0] - b[0], c[1] - b[1]);
-  const ca = Math.hypot(a[0] - c[0], a[1] - c[1]);
-  const cross = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
-  if (Math.abs(cross) < 1e-12) return null;
-  return (ab * bc * ca) / (2 * Math.abs(cross));
-}

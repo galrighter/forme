@@ -140,25 +140,24 @@ describe("validateDesign", () => {
     expect(report.checks[0].check).toBe("V1");
   });
 
-  it("V9: does NOT flag smooth rounded cutouts as sharp corners", () => {
-    // אליפסות חלקות (קצוות מחודדים אך מעוגלים) — לא אמורות להיחשב פינות חדות
-    const holes: string[] = [];
-    for (let x = 20; x <= 140; x += 16) holes.push(`<ellipse cx="${x}" cy="7.5" rx="5" ry="2.5"/>`);
-    const { report } = validateDesign(svg(holes.join("")), DIMS);
-    expect(report.checks.find((c) => c.check === "V9")!.status).toBe("pass");
+  it("V9+V6: sharp/pointed HOLE corners are not flagged", () => {
+    // חודי חור (אליפסה שטוחה עם קצה חד; פינות מלבן חד) — לא פגם: חוד של חור
+    // אינו מסוכן בכיפוף חד-פעמי של פליז מחושל.
+    const flat = validateDesign(svg(`<ellipse cx="80" cy="7.5" rx="5" ry="1.2"/>`), DIMS).report;
+    expect(flat.checks.find((c) => c.check === "V9")!.status).toBe("pass");
+    expect(flat.checks.find((c) => c.check === "V6")!.status).toBe("pass");
+    const rect = validateDesign(svg(`<rect x="76" y="5" width="8" height="5"/>`), DIMS).report;
+    expect(rect.checks.find((c) => c.check === "V9")!.status).toBe("pass");
   });
 
-  it("V9+V6: a flat ellipse with axial sharp tips passes (tips along the bend axis)", () => {
-    // בדיוק המקרה של גל: rx=5, ry=1.2 — קצוות חדים (רדיוס ~0.29מ"מ) אך מצביעים
-    // לאורך X (מקבילים למתיחת הכיפוף) → לא מסוכנים. וגם קמור → אין חריץ (V6).
-    const { report } = validateDesign(svg(`<ellipse cx="80" cy="7.5" rx="5" ry="1.2"/>`), DIMS);
-    expect(report.checks.find((c) => c.check === "V9")!.status).toBe("pass");
-    expect(report.checks.find((c) => c.check === "V6")!.status).toBe("pass");
-  });
-
-  it("V9: flags a genuinely sharp angular notch (corner across the bend axis)", () => {
-    // מלבן חיתוך עם פינות ישרות (90°, רדיוס ~0) — חוד ב-45°, לא מקביל ל-X
-    const { report } = validateDesign(svg(`<rect x="76" y="5" width="8" height="5"/>`), DIMS);
-    expect(report.checks.find((c) => c.check === "V9")!.status).toBe("warn");
+  it("V10: still flags a thin exposed metal sliver", () => {
+    // שני חורים עם פס מתכת אופקי דק (1מ"מ < minFeature 1.5) ביניהם — חוד/פס
+    // מתכת דק וחשוף, הסכנה האמיתית. thin ב-Y ולכן V4 בטוח, אבל V10 מסמן.
+    const { report } = validateDesign(
+      svg(`<rect x="40" y="4" width="80" height="3"/><rect x="40" y="8" width="80" height="3"/>`),
+      DIMS,
+    );
+    expect(report.checks.find((c) => c.check === "V10")!.status).toBe("warn");
+    expect(report.checks.find((c) => c.check === "V4")!.status).toBe("pass");
   });
 });
