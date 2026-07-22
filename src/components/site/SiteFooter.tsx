@@ -37,6 +37,16 @@ export default function SiteFooter() {
               {SITE.contactEmail}
             </a>
           </nav>
+
+          <nav className="flex flex-col gap-2 text-sm">
+            <span className="text-xs font-medium text-stone-400">{s.footerLegal}</span>
+            <Link href="/terms" className="text-stone-600 transition-colors hover:text-stone-900">
+              {s.navTerms}
+            </Link>
+            <Link href="/privacy" className="text-stone-600 transition-colors hover:text-stone-900">
+              {s.navPrivacy}
+            </Link>
+          </nav>
         </div>
 
         <div className="mt-10 flex flex-col gap-1 border-t border-stone-200 pt-6 text-xs text-stone-400 sm:flex-row sm:justify-between">

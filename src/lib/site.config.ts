@@ -2,6 +2,8 @@
 // גל: לעדכן כאן את כתובת האימייל / הקישורים כשהם מתגבשים.
 
 export const SITE = {
+  // כתובת האתר בייצור (מוגדר ב-wrangler.jsonc כ-custom domain).
+  url: "https://studio.powdercoat.co.il",
   // כתובת יצירת קשר. placeholder עד שתיקבע כתובת רשמית לדומיין.
   contactEmail: "hello@forme.co.il",
   // רשתות חברתיות — להוסיף כשקיימות (null = לא מוצג).
