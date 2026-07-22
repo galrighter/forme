@@ -1,8 +1,8 @@
-import { resolveFab, type ProductType } from "@/lib/fabrication.config";
+import { type ProductType } from "@/lib/fabrication.config";
 
-// פרומפט יצירה קצר וכללי (בקשת גל): הסבר טבעי + מגבלות מידה כלליות + פורמט
-// SVG מינימלי הדרוש לקריאה — בלי טבלת מגבלות כבדה שחונקת יצירתיות. חריגות
-// מטופלות אחר כך ע"י לולאת התיקון (עיבוי/עיגול/הגדלה תוך שמירת אופי העיצוב).
+// פרומפט יצירה מינימלי (בקשת גל): רק מה שלא מובן מאליו למודל — מה בונים, מידות,
+// ופורמט ה-SVG שאנחנו חייבים כדי לקרוא את התוצאה. שום הנחיית עיצוב/מגבלה; אלה
+// מובנות מאליהן או מטופלות אחר כך בלולאת התיקון. מתחילים במעט; מוסיפים אם צריך.
 
 export interface PromptDims {
   productType: ProductType;
@@ -15,27 +15,15 @@ export interface PromptDims {
 const r1 = (v: number) => Math.round(v * 100) / 100;
 
 export function buildSystemPrompt(dims: PromptDims): string {
-  const fab = resolveFab(dims.thicknessMm, dims.productType);
   const L = dims.lengthMm, W = dims.widthMm;
-  const productName = dims.productType === "ring" ? "open ring" : "open cuff bracelet";
+  const productName = dims.productType === "ring" ? "ring" : "cuff bracelet";
+  const cy = r1(W / 2);
 
-  return `You are a talented jewelry designer. Design an ${productName} made from a single flat strip of ${fab.thicknessMm}mm C260 brass, produced ONLY by laser-cutting the flat strip and then roll-bending it into shape — no welding, no other processes. The strip is ${L}mm long and ${W}mm wide; when bent, the length wraps around and the width stays the width.
+  return `You are designing a brass ${productName} — a flat strip ${L}mm long × ${W}mm wide × ${dims.thicknessMm}mm thick, laser-cut and then bent into shape. Create a cut pattern for the user's request.
 
-Design the METAL: the brass that REMAINS is the jewelry — its flowing shapes and silhouette are what people see and wear. The parts you cut away are open space that shapes it. Make something genuinely beautiful for the user's request, with forms that travel along the whole length and use the full width — not a row of little holes.
+Reply with ONLY an SVG, no other text: \`viewBox="0 0 ${L} ${W}"\` (1 unit = 1mm, no width/height attributes), a single \`<g id="cutouts">\` of closed plain shapes (\`path\`/\`circle\`/\`ellipse\`/\`rect\`) with \`fill="black"\` marking the brass to CUT AWAY (it drops out). Do not draw the strip's own outline — it is the implicit ${L}×${W} rectangle.
 
-Output ONLY the laser-cut pattern as a single SVG and nothing else (no markdown, no explanation):
-- \`viewBox="0 0 ${L} ${W}"\`, 1 unit = 1mm, no width/height attributes.
-- One \`<g id="cutouts">\` containing closed shapes (\`path\`/\`circle\`/\`ellipse\`/\`rect\`) filled \`fill="black"\` = the brass that is CUT AWAY and falls out. Do NOT draw the strip outline — the strip is the implicit rectangle 0,0,${L},${W}. No stroke, transform, clip, defs, use, image, text, or style.
-- Prefer smooth Bezier curves (C/Q) for organic flow. Every subpath closes with Z. Coordinates ≤ 3 decimals.
-
-General guidance (approximate — exact sizes get fine-tuned automatically afterward, so favour beauty over caution):
-- Keep ALL the remaining metal connected as one piece; never fully enclose metal by a cut (it would fall out) — no closed rings/donuts or enclosed letter centers.
-- Use the FULL width and length — let forms flow right up close to the edges (an undulating metal edge is great). Just don't let a cut touch the very border: keep a sliver of metal (about ${r1(fab.edgeMargin)}mm) at the long edges and a little more (about ${r1(fab.endMargin)}mm) at the two open ends so nothing is fragile.
-- Keep metal ribbons and openings a sensible few mm across — no hairlines.
-
-If the user wants text, don't draw letters; emit \`<text-request content="TEXT" x="80" y="7.5" height="6" align="middle"/>\` inside the cutouts layer (x,y = anchor, y = vertical center; align start/middle/end) and the system renders + auto-bridges it.
-
-EDITING: if the user message includes a CURRENT design SVG, return the complete updated SVG (not a diff), changing only what was asked. If a red-annotated image is attached, treat the red marks as edit instructions for those regions only.`;
+For text in the design, don't draw letters — emit \`<text-request content="TEXT" x="80" y="${cy}" height="6" align="middle"/>\` inside the layer. When editing an existing design (its SVG is provided), return the complete updated SVG.`;
 }
 
 export function buildGenerateUserText(
