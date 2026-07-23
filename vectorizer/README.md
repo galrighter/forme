@@ -73,14 +73,24 @@ job endpoints — `/api/health` stays open). The box needs Docker installed.
 | Method | Path | Purpose |
 | ------ | ---- | ------- |
 | GET  | `/api/health` | liveness + active tracer backend |
-| POST | `/api/jobs` | multipart `image,width_mm,height_mm,dark_region_role,output_mode` → result.json + inline `cutouts_svg`/`metal_svg` |
+| POST | `/api/jobs` | multipart `image,height_mm,[width_mm],dark_region_role,output_mode,condition,color_key` → result.json + inline `cutouts_svg`/`metal_svg` |
 | GET  | `/api/jobs/{id}` | job status + result |
 | GET  | `/api/jobs/{id}/files/{name}` | download a fixed-name artifact |
 | DELETE | `/api/jobs/{id}` | delete a job |
 
 ```bash
+# already-two-tone image (supply width_mm)
 curl -F image=@fixture.png -F width_mm=160 -F height_mm=15 localhost:8000/api/jobs
+
+# raw metallic render — condition to two-tone + smooth in one call
+# (width_mm is derived from the cropped metal; only height_mm is needed)
+curl -F image=@render.png -F height_mm=15 -F condition=true -F color_key=warm localhost:8000/api/jobs
 ```
+
+With `condition=true` the service colour-keys the metal (`color_key`:
+`warm`|`dark`|`saturation`), crops, denoises and smooths the render into a clean
+two-tone image before tracing — so a raw shaded bracelet render goes straight to
+a smooth SVG in a single call.
 
 ## Config (env)
 

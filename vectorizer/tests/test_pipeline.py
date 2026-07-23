@@ -100,6 +100,29 @@ def test_http_roundtrip(fixture_png: bytes) -> None:
     assert client.delete(f"/api/jobs/{job_id}").json()["deleted"] is True
 
 
+def test_conditioning_single_call(fixture_png: bytes) -> None:
+    """A raw (non-two-tone) render goes straight through with condition=true.
+
+    The fixture is black-on-white, so key='dark' selects the metal; width_mm is
+    derived from the crop, so only height_mm is supplied.
+    """
+    from fastapi.testclient import TestClient
+
+    from app.api.main import app
+
+    client = TestClient(app)
+    resp = client.post(
+        "/api/jobs",
+        files={"image": ("f.png", fixture_png, "image/png")},
+        data={"height_mm": "15", "condition": "true", "color_key": "dark"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "approved"
+    assert body["input"]["width_mm"] > 0  # derived from the crop
+    assert "cutouts_svg" in body
+
+
 def test_auth_gate_when_token_set(fixture_png: bytes, monkeypatch) -> None:
     from types import SimpleNamespace
 
