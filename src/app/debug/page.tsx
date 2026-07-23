@@ -284,6 +284,13 @@ export default function DebugPage() {
           </div>
         </div>
       )}
+
+      {view === "run" && result && !debug && (
+        <div className="rounded-xl border border-amber-300 bg-amber-50 p-3">
+          <div className="mb-1 font-semibold text-amber-800">אין פירוק שלבים — תגובת המנוע הגולמית:</div>
+          <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-all text-xs">{JSON.stringify(result, null, 2)}</pre>
+        </div>
+      )}
     </div>
   );
 }

@@ -39,13 +39,23 @@ export async function vectorizeImage(
     throw new ApiError("vectorizer_unreachable", `Could not reach vectorizer: ${(e as Error).message}`, 502);
   }
 
-  const data = (await resp.json().catch(() => ({}))) as {
+  const text = await resp.text();
+  let data: {
     status?: string;
     error_code?: string;
     cutouts_svg?: string;
     input?: { width_mm?: number };
     metrics?: { iou?: number; vector_holes?: number; mean_contour_deviation_mm?: number };
-  };
+  } = {};
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new ApiError(
+      "vectorize_bad_response",
+      `Vectorizer returned non-JSON (${resp.status} ${resp.headers.get("content-type")}): ${text.slice(0, 300)}`,
+      502,
+    );
+  }
 
   if (!resp.ok || data.status !== "approved" || !data.cutouts_svg) {
     const reason = data.error_code || data.status || `http_${resp.status}`;
@@ -83,9 +93,15 @@ export async function vectorizeImageDebug(
   try {
     resp = await fetch(`${vectorizerUrl()}/api/jobs`, { method: "POST", body: form, headers });
   } catch (e) {
-    throw new ApiError("vectorizer_unreachable", `Could not reach vectorizer: ${(e as Error).message}`, 502);
+    return { __fetchError: (e as Error).message };
   }
-  return (await resp.json().catch(() => ({}))) as Record<string, unknown>;
+  const text = await resp.text();
+  try {
+    return JSON.parse(text) as Record<string, unknown>;
+  } catch {
+    // surface the raw reply so the back-office shows what actually came back
+    return { __status: resp.status, __contentType: resp.headers.get("content-type"), __body: text.slice(0, 2000) };
+  }
 }
 
 export interface IngestResult {
