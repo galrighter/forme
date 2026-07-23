@@ -101,7 +101,18 @@ def run_pipeline(
     height_mm: float,
     dark_region_role: str = "metal",
     output_mode: str = "both",
+    condition: bool = False,
+    color_key: str = "warm",
 ) -> PipelineResult:
+    # Optional conditioning: turn a raw shaded/coloured render into a clean
+    # smooth two-tone image first. width_mm is derived from the cropped metal,
+    # and the conditioned image is black=metal, so the role becomes "metal".
+    if condition:
+        from .core.conditioning import condition_png
+
+        data, width_mm = condition_png(data, height_mm, color_key)
+        dark_region_role = "metal"
+
     image = load_and_validate(data, width_mm, height_mm)
 
     candidates: list[Candidate] = []

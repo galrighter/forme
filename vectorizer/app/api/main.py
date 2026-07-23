@@ -38,20 +38,26 @@ def health() -> dict:
 @app.post("/api/jobs", dependencies=[Depends(require_auth)])
 async def create_job(
     image: UploadFile = File(...),
-    width_mm: float = Form(...),
     height_mm: float = Form(...),
+    width_mm: float = Form(0.0),  # derived from the crop when condition=true
     dark_region_role: str = Form("metal"),
     output_mode: str = Form("both"),
+    condition: bool = Form(False),
+    color_key: str = Form("warm"),
 ) -> JSONResponse:
     data = await image.read()
     if len(data) > SETTINGS.max_upload_mb * 1_000_000:
         raise HTTPException(413, detail={"error_code": "FILE_TOO_LARGE"})
     if dark_region_role not in ("metal", "background"):
         raise HTTPException(400, detail={"error_code": "INVALID_DIMENSIONS", "message": "bad dark_region_role"})
+    if color_key not in ("warm", "dark", "saturation"):
+        raise HTTPException(400, detail={"error_code": "INVALID_DIMENSIONS", "message": "bad color_key"})
+    if not condition and width_mm <= 0:
+        raise HTTPException(400, detail={"error_code": "INVALID_DIMENSIONS", "message": "width_mm required unless condition=true"})
 
     rec = STORE.create()
     try:
-        res = pipeline.run_pipeline(data, width_mm, height_mm, dark_region_role, output_mode)
+        res = pipeline.run_pipeline(data, width_mm, height_mm, dark_region_role, output_mode, condition, color_key)
     except InputError as exc:
         rec.status = "rejected"
         rec.error_code = exc.code
@@ -59,6 +65,14 @@ async def create_job(
         return JSONResponse(
             status_code=422,
             content={"job_id": rec.job_id, "status": "rejected", "error_code": exc.code, "error_message": exc.message},
+        )
+    except ValueError as exc:  # conditioning could not find metal
+        rec.status = "rejected"
+        rec.error_code = "NO_FOREGROUND_FOUND"
+        rec.error_message = str(exc)
+        return JSONResponse(
+            status_code=422,
+            content={"job_id": rec.job_id, "status": "rejected", "error_code": "NO_FOREGROUND_FOUND", "error_message": str(exc)},
         )
     except RenderError as exc:
         rec.status = "failed"

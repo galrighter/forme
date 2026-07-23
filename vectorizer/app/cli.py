@@ -15,16 +15,20 @@ from . import pipeline
 def main() -> int:
     ap = argparse.ArgumentParser(description="Raster bracelet PNG -> faithful SVG")
     ap.add_argument("image")
-    ap.add_argument("--width", type=float, required=True, help="width in mm")
+    ap.add_argument("--width", type=float, default=0.0, help="width in mm (derived from crop when --condition)")
     ap.add_argument("--height", type=float, required=True, help="height in mm")
     ap.add_argument("--role", choices=["metal", "background"], default="metal")
+    ap.add_argument("--condition", action="store_true", help="condition a raw metallic render into two-tone first")
+    ap.add_argument("--key", choices=["warm", "dark", "saturation"], default="warm")
     ap.add_argument("--out", default="out")
     args = ap.parse_args()
 
     with open(args.image, "rb") as f:
         data = f.read()
 
-    res = pipeline.run_pipeline(data, args.width, args.height, args.role)
+    res = pipeline.run_pipeline(
+        data, args.width, args.height, args.role, condition=args.condition, color_key=args.key
+    )
     result = pipeline.to_result_dict(res)
 
     os.makedirs(args.out, exist_ok=True)
