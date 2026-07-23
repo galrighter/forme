@@ -8,14 +8,11 @@
     "directory": ".open-next/assets",
     "binding": "ASSETS"
   },
-  // הדומיין הראשי של האתר. custom_domain דורש שה-zone rmjewel.com יהיה
-  // מחובר ל-Cloudflare (nameservers מצביעים אליו) — אחרת הדיפלוי ייכשל.
-  // גם apex וגם www מוגדרים כ-custom domain: wrangler יוצר את שתי רשומות
-  // ה-DNS + התעודות אוטומטית בדיפלוי. הקנוניקל נשאר rmjewel.com (SITE.url).
-  "routes": [
-    { "pattern": "rmjewel.com", "custom_domain": true },
-    { "pattern": "www.rmjewel.com", "custom_domain": true }
-  ],
+  // הדומיין המותאם (rmjewel.com + www) מנוהל ידנית ב-Cloudflare Dashboard
+  // ולא כאן — Workers & Pages → forme-studio → Domains & Routes → Add →
+  // Custom Domain. כך הדיפלוי לא צריך הרשאת Zone·Workers-Routes בטוקן (שכשלה
+  // עם auth error 10000), ורץ עם הרשאות ה-account בלבד. Cloudflare מייצר את
+  // רשומות ה-DNS + התעודות בעצמו, וההגדרה נשמרת בין דיפלויים.
   "observability": {
     "enabled": true
   }
