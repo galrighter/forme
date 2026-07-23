@@ -32,6 +32,7 @@ export const he = {
   // Canvas tabs
   flatView: "שטוח",
   view3d: "הדמיה",
+  renderView: "רנדר AI",
 
   // Annotation tools
   annotationTools: "כלי סימון",
