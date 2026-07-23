@@ -32,6 +32,12 @@ export function PromptBar() {
     }
   };
 
+  const convert = async () => {
+    if (!attachment || busy) return;
+    const ok = await s.vectorize(attachment);
+    if (ok) setAttachment(null);
+  };
+
   const statusText =
     s.genStatus === "generating"
       ? he.statusGenerating
@@ -57,6 +63,18 @@ export function PromptBar() {
               {he.retry}
             </button>
           )}
+        </div>
+      )}
+      {attachment && (
+        <div className="px-1 pb-1">
+          <button
+            className="w-full rounded-xl border border-amber-400 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800 hover:bg-amber-100 disabled:opacity-40"
+            title={he.convertToSvgHint}
+            disabled={busy}
+            onClick={() => void convert()}
+          >
+            ✨ {he.convertToSvg}
+          </button>
         </div>
       )}
       <div className="flex items-end gap-2">

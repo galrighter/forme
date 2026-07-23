@@ -38,6 +38,7 @@ interface StudioState {
   deleteDesign: (id: string) => Promise<void>;
   duplicateDesign: (id: string) => Promise<void>;
   generate: (prompt: string, images: Array<{ kind: "inspiration" | "annotation"; dataUrl: string }>) => Promise<boolean>;
+  vectorize: (dataUrl: string, colorKey?: "warm" | "dark" | "saturation") => Promise<boolean>;
   gotoVersion: (idx: number) => Promise<void>;
   setTab: (t: "flat" | "3d") => void;
   setTool: (t: AnnotationTool) => void;
@@ -171,6 +172,32 @@ export const useStudio = create<StudioState>((set, get) => ({
         images,
       });
       // רענון העיצוב (current_version_id השתנה) והוספת הגרסה
+      const { design, versions } = await api.getDesign(d.id);
+      const idx = versions.findIndex((x) => x.id === res.version.id);
+      set({
+        design,
+        versions,
+        versionIdx: idx >= 0 ? idx : versions.length - 1,
+        geometry: res.geometry,
+        genStatus: "idle",
+        annotations: [],
+        validationOpen: res.report.status !== "pass",
+      });
+      await get().refreshDesigns();
+      return res.report.status !== "fail";
+    } catch (e) {
+      const msg = e instanceof ClientApiError ? e.message : he.errGeneric;
+      set({ genStatus: "error", genError: msg });
+      return false;
+    }
+  },
+
+  vectorize: async (dataUrl, colorKey = "warm") => {
+    const d = get().design;
+    if (!d) return false;
+    set({ genStatus: "generating", genError: null });
+    try {
+      const res = await api.vectorize({ designId: d.id, image: { dataUrl }, colorKey });
       const { design, versions } = await api.getDesign(d.id);
       const idx = versions.findIndex((x) => x.id === res.version.id);
       set({

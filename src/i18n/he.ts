@@ -48,6 +48,8 @@ export const he = {
   promptPlaceholder: "תיאור העיצוב או הוראת שינוי…",
   attachImage: "צירוף תמונה",
   send: "שליחה",
+  convertToSvg: "המרת תמונה ל-SVG",
+  convertToSvgHint: "הופך תמונת עיצוב מתכתית ל-SVG נקי לייצור",
   statusGenerating: "מייצר…",
   statusValidating: "בודק ייצוריות…",
   statusRepairing: "מתקן…",
