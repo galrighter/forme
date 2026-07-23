@@ -8,8 +8,13 @@
     "directory": ".open-next/assets",
     "binding": "ASSETS"
   },
+  // הדומיין הראשי של האתר. custom_domain דורש שה-zone rmjewel.com יהיה
+  // מחובר ל-Cloudflare (nameservers מצביעים אליו) — אחרת הדיפלוי ייכשל.
+  // גם apex וגם www מוגדרים כ-custom domain: wrangler יוצר את שתי רשומות
+  // ה-DNS + התעודות אוטומטית בדיפלוי. הקנוניקל נשאר rmjewel.com (SITE.url).
   "routes": [
-    { "pattern": "studio.powdercoat.co.il", "custom_domain": true }
+    { "pattern": "rmjewel.com", "custom_domain": true },
+    { "pattern": "www.rmjewel.com", "custom_domain": true }
   ],
   "observability": {
     "enabled": true
@@ -17,4 +22,6 @@
   // Runtime secrets (set via `wrangler secret put` or the deploy workflow):
   //   ANTHROPIC_API_KEY, OPENAI_KEY, SUPABASE_URL, SUPABASE_SECRET_KEY,
   //   LLM_MODEL, OPENAI_MODEL, LLM_PROVIDER
+  //   ADMIN_TOKEN — shared secret (>=8 chars) that gates /admin (site inquiries).
+  //                 Without it, /admin is disabled; the public order form still works.
 }
