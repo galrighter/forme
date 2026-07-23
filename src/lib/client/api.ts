@@ -63,10 +63,13 @@ export const api = {
     currentSvg: string | null;
     images: Array<{ kind: "inspiration" | "annotation"; dataUrl: string }>;
   }) =>
-    call<{ version: Version; report: ValidationReport; geometry: Geometry | null; repairRounds: number }>(
-      "/api/generate",
-      { method: "POST", body: JSON.stringify(input) },
-    ),
+    call<{
+      version: Version;
+      report: ValidationReport;
+      geometry: Geometry | null;
+      lengthMm?: number;
+      render?: { model: string; dataUrl: string };
+    }>("/api/generate", { method: "POST", body: JSON.stringify(input) }),
 
   vectorize: (input: {
     designId: string;

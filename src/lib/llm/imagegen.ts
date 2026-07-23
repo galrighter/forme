@@ -1,0 +1,118 @@
+import { LlmError, type LlmImage } from "./core";
+import { decodeDataUrl } from "@/lib/db/storage";
+
+// יצירת רנדר של הצמיד מטקסט/השראה דרך OpenAI Images API (gpt-image-1).
+// הרנדר נשלח אחר כך ל-vectorizer להמרה ל-SVG. זה החצי ש-LLM ישיר לא הצליח בו:
+// מודל התמונה מייצר הדמיה יפה, וה-vectorizer הופך אותה לוקטור נקי.
+
+const IMAGE_MODELS = ["gpt-image-1", "dall-e-3"] as const;
+const IMAGE_TIMEOUT_MS = 120_000;
+
+export interface RenderResult {
+  base64: string;
+  mediaType: string;
+  model: string;
+}
+
+function openaiKey(): string | undefined {
+  return process.env.OPENAI_KEY || process.env.OPENAI_API_KEY;
+}
+
+/** פרומפט מכוון: רנדר שטוח, top-down, פליז חם על רקע לבן — קלט אידיאלי ל-vectorizer. */
+export function buildRenderPrompt(userPrompt: string): string {
+  return [
+    "A flat, top-down product photograph of a laser-cut brass bracelet cuff, laid out perfectly straight and unrolled, filling the width of the frame, on a plain solid pure-white background.",
+    "The bracelet is a single long horizontal strip of polished warm-gold brass with an intricate decorative cut-out pattern.",
+    "The cut-out openings are fully cut through, showing the pure white background through them.",
+    "Design intent for the cut-out pattern: " + userPrompt + ".",
+    "Even soft studio lighting, straight overhead view, no perspective, no shadows, no reflections, no hands, no props, no text.",
+    "The brass must be a clearly warmer gold tone than the white background so the metal is easy to separate from the openings.",
+  ].join(" ");
+}
+
+interface Attempt {
+  ok: boolean;
+  base64?: string;
+  error?: string;
+}
+
+async function callImages(
+  path: string,
+  init: RequestInit & { signal: AbortSignal },
+): Promise<Attempt> {
+  const res = await fetch(`https://api.openai.com/v1/images/${path}`, init);
+  if (!res.ok) {
+    return { ok: false, error: `${res.status} ${(await res.text()).slice(0, 200)}` };
+  }
+  const data = (await res.json()) as { data?: Array<{ b64_json?: string }> };
+  const b64 = data.data?.[0]?.b64_json;
+  if (!b64) return { ok: false, error: "no image in response" };
+  return { ok: true, base64: b64 };
+}
+
+/**
+ * מייצר רנדר PNG של הצמיד. אם ניתנה תמונת השראה — משתמש ב-edits עם התמונה כרפרנס;
+ * אחרת generations מטקסט. מנסה gpt-image-1 ואז dall-e-3.
+ */
+export async function generateRenderPng(
+  userPrompt: string,
+  inspiration: LlmImage | null,
+): Promise<RenderResult> {
+  const key = openaiKey();
+  if (!key) throw new LlmError("OPENAI_KEY is not configured for image generation", false);
+
+  const prompt = buildRenderPrompt(userPrompt);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), IMAGE_TIMEOUT_MS);
+  const errors: string[] = [];
+
+  try {
+    for (const model of IMAGE_MODELS) {
+      // dall-e-3 אינו תומך ב-edits עם רפרנס — משתמשים בו רק ל-generations.
+      const useEdit = inspiration !== null && model === "gpt-image-1";
+      try {
+        let attempt: Attempt;
+        if (useEdit && inspiration) {
+          const { bytes } = decodeDataUrl(`data:${inspiration.mediaType};base64,${inspiration.base64}`);
+          const form = new FormData();
+          form.append("model", model);
+          form.append("prompt", prompt);
+          form.append("size", "1536x1024");
+          form.append("image", new Blob([bytes as BlobPart], { type: inspiration.mediaType }), "inspiration.png");
+          attempt = await callImages("edits", {
+            method: "POST",
+            headers: { authorization: `Bearer ${key}` },
+            body: form,
+            signal: controller.signal,
+          });
+        } else {
+          const body: Record<string, unknown> = {
+            model,
+            prompt,
+            n: 1,
+            size: model === "gpt-image-1" ? "1536x1024" : "1792x1024",
+          };
+          if (model === "gpt-image-1") body.quality = "high";
+          else body.response_format = "b64_json";
+          attempt = await callImages("generations", {
+            method: "POST",
+            headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
+            body: JSON.stringify(body),
+            signal: controller.signal,
+          });
+        }
+        if (attempt.ok && attempt.base64) {
+          return { base64: attempt.base64, mediaType: "image/png", model };
+        }
+        errors.push(`${model}: ${attempt.error}`);
+      } catch (e) {
+        if (controller.signal.aborted) throw new LlmError("Image generation timed out", true);
+        errors.push(`${model}: ${(e as Error).message}`);
+      }
+    }
+  } finally {
+    clearTimeout(timer);
+  }
+
+  throw new LlmError(`Image generation failed. ${errors.join(" | ")}`, true);
+}

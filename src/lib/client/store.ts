@@ -18,7 +18,8 @@ interface StudioState {
   geometry: Geometry | null;
   genStatus: GenStatus;
   genError: string | null;
-  tab: "flat" | "3d";
+  tab: "flat" | "3d" | "render";
+  renderUrl: string | null;
   tool: AnnotationTool;
   annotations: Annotation[];
   drawerOpen: boolean;
@@ -40,7 +41,7 @@ interface StudioState {
   generate: (prompt: string, images: Array<{ kind: "inspiration" | "annotation"; dataUrl: string }>) => Promise<boolean>;
   vectorize: (dataUrl: string, colorKey?: "warm" | "dark" | "saturation") => Promise<boolean>;
   gotoVersion: (idx: number) => Promise<void>;
-  setTab: (t: "flat" | "3d") => void;
+  setTab: (t: "flat" | "3d" | "render") => void;
   setTool: (t: AnnotationTool) => void;
   addAnnotation: (a: Annotation) => void;
   removeAnnotation: (id: string) => void;
@@ -67,6 +68,7 @@ export const useStudio = create<StudioState>((set, get) => ({
   genStatus: "idle",
   genError: null,
   tab: "flat",
+  renderUrl: null,
   tool: "none",
   annotations: [],
   drawerOpen: false,
@@ -179,6 +181,7 @@ export const useStudio = create<StudioState>((set, get) => ({
         versions,
         versionIdx: idx >= 0 ? idx : versions.length - 1,
         geometry: res.geometry,
+        renderUrl: res.render?.dataUrl ?? null,
         genStatus: "idle",
         annotations: [],
         validationOpen: res.report.status !== "pass",
@@ -205,6 +208,7 @@ export const useStudio = create<StudioState>((set, get) => ({
         versions,
         versionIdx: idx >= 0 ? idx : versions.length - 1,
         geometry: res.geometry,
+        renderUrl: dataUrl,
         genStatus: "idle",
         annotations: [],
         validationOpen: res.report.status !== "pass",

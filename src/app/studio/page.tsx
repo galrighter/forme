@@ -58,6 +58,11 @@ export default function StudioPage() {
             <TabButton active={s.tab === "3d"} onClick={() => s.setTab("3d")}>
               {he.view3d}
             </TabButton>
+            {s.renderUrl && (
+              <TabButton active={s.tab === "render"} onClick={() => s.setTab("render")}>
+                {he.renderView}
+              </TabButton>
+            )}
           </div>
           {/* קנבס מרכזי */}
           <main className="relative min-h-0 flex-1">
@@ -69,8 +74,17 @@ export default function StudioPage() {
                     <AnnotationToolbar />
                   </div>
                 </>
-              ) : (
+              ) : s.tab === "3d" ? (
                 <Preview3D />
+              ) : (
+                <div className="flex h-full items-center justify-center bg-stone-50 p-4">
+                  {s.renderUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={s.renderUrl} alt={he.renderView} className="max-h-full max-w-full rounded-lg object-contain shadow" />
+                  ) : (
+                    <div className="text-stone-400">{he.renderView}</div>
+                  )}
+                </div>
               )
             ) : (
               <EmptyState onExample={(p) => void s.generate(p, [])} />
