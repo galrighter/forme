@@ -93,6 +93,58 @@ def cleanup(geom: BaseGeometry, min_ring_area_mm2: float = 1e-4) -> MultiPolygon
     return MultiPolygon(kept) if len(kept) > 1 else MultiPolygon([kept[0]])
 
 
+def _chaikin_ring(coords: list, iterations: int) -> list:
+    pts = [(float(x), float(y)) for x, y in coords]
+    if len(pts) > 1 and pts[0] == pts[-1]:
+        pts = pts[:-1]
+    for _ in range(iterations):
+        n = len(pts)
+        if n < 3:
+            break
+        nxt = []
+        for i in range(n):
+            px, py = pts[i]
+            qx, qy = pts[(i + 1) % n]
+            nxt.append((0.75 * px + 0.25 * qx, 0.75 * py + 0.25 * qy))
+            nxt.append((0.25 * px + 0.75 * qx, 0.25 * py + 0.75 * qy))
+        pts = nxt
+    return pts
+
+
+def smooth_chaikin(geom: BaseGeometry, iterations: int) -> MultiPolygon:
+    """Round jagged trace edges via Chaikin corner-cutting.
+
+    Each pass replaces every vertex with two points at the 1/4 and 3/4 marks of
+    its edges, so the boundary moves by at most ~1/4 of an edge length — enough
+    to smooth raster staircases while staying close to the faithful trace (the
+    fidelity gate still validates the result). Unlike raster blur it does not
+    fatten thin metal bridges.
+    """
+    if iterations <= 0:
+        return cleanup(geom)
+    polys = _as_polygons(geom if geom.is_valid else make_valid(geom))
+    out = []
+    for p in polys:
+        ext = _chaikin_ring(list(p.exterior.coords), iterations)
+        holes = [_chaikin_ring(list(r.coords), iterations) for r in p.interiors]
+        if len(ext) < 3:
+            continue
+        q = Polygon(ext, [h for h in holes if len(h) >= 3])
+        if not q.is_valid:
+            q = make_valid(q)
+        if not q.is_empty and q.area > 0:
+            out.append(q)
+    if not out:
+        return MultiPolygon()
+    from shapely.ops import unary_union
+
+    u = unary_union(out)
+    # Chaikin leaves many near-collinear points; drop the redundant ones with a
+    # tiny topology-preserving simplify (well below the fidelity budget).
+    u = u.simplify(0.01, preserve_topology=True)
+    return cleanup(u)
+
+
 def cutouts_from_metal(metal: BaseGeometry, width_mm: float, height_mm: float) -> BaseGeometry:
     rect = box(0, 0, width_mm, height_mm)
     diff = rect.difference(metal)

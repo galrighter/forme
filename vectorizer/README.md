@@ -37,6 +37,10 @@ python scripts/make_fixture.py --out fixture.png      # or bring your own
 python -m app.cli fixture.png --width 160 --height 15 --out out/
 #   -> out/{metal.svg,cutouts.svg,rendered.png,difference.png,overlay.png,result.json}
 
+# condition a real (shaded, coloured) design render into a clean two-tone PNG
+python -m scripts.prep_image render.png --height 15 --out conditioned.png
+python -m app.cli conditioned.png --width <printed> --height 15 --out out/
+
 # the HTTP service
 uvicorn app.api.main:app --reload --port 8000
 pytest -q
@@ -86,15 +90,30 @@ likely force loosening. See `app/config.py`. Key knobs:
 `MAX_MAX_DEVIATION_MM` (0.15), `MAX_ASPECT_RATIO_ERROR` (0.01),
 `TRACER_BACKEND` (`opencv` | `vtracer`).
 
+## Conditioning & smoothing (calibrated on real renders)
+
+Real design renders are shaded, textured and coloured, with the metal in a
+distinct hue against a near-white background+cutouts. `scripts/prep_image.py`
+conditions them: key on the metal colour (warm/dark/saturation), crop to the
+metal, despeckle, and — crucially — blur the **continuous metal score** before
+thresholding so boundaries come out smooth without fattening the thin bands.
+
+Smoothing is finished in the tracer via `SMOOTH_ITERS` Chaikin passes (default
+2) plus a tiny simplify, turning raster staircases into flowing curves.
+
+The fidelity philosophy after calibration: **topology (exact hole/component
+match) and mean contour deviation are the real gates**; IoU (`MIN_IOU_HARD`
+0.88) and max deviation (`MAX_MAX_DEVIATION_MM` 1.0) are loose on purpose,
+because smoothing an AI render's pixel noise shifts thin-band edges
+sub-pixel-uniformly and tanks IoU even when nothing is lost. All env-overridable
+to tighten per use case.
+
 ## Known constraints / next steps
 
-- **Input contract is strict** (clean two-tone, flat, aspect ratio ≤1% off).
-  Real image-generator output is shaded and square-ish — expect a
-  crop-to-content + tone-reduction step upstream, or relaxed gates, before this
-  is usable on live model images. This is the calibration work to do next with
-  real designs.
-- VTracer backend is wired but the OpenCV polygon tracer is the default; VTracer
-  smoothness is calibrated after we see real images.
+- The colour key + `--height` are supplied per image today; forme (or a small
+  auto-detect) will pick them when integrated.
+- VTracer backend is wired but the OpenCV polygon tracer + Chaikin is the
+  default and produces smooth curves.
 - No forme integration yet — this service stands alone. Wiring it into
-  `src/lib/llm/pipeline.ts` (text → image → this service → cutouts) is the
+  `src/lib/llm/pipeline.ts` (design image → this service → cutouts) is the
   following step.

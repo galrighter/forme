@@ -58,6 +58,12 @@ def _build_candidate(
     geom_mm = geometry.scale_to_mm(geom_px, image.width_px, image.height_px, width_mm, height_mm)
     geom_mm = geometry.snap_to_bounds(geom_mm, width_mm, height_mm, tol=1.5 * mm_per_px)
     metal = geometry.cleanup(geom_mm)
+    if SETTINGS.smooth_iters > 0:
+        metal = geometry.snap_to_bounds(
+            geometry.smooth_chaikin(metal, SETTINGS.smooth_iters), width_mm, height_mm, tol=1.5 * mm_per_px
+        )
+    if metal.is_empty:
+        return None
     if metal.is_empty:
         return None
     cutouts = geometry.cutouts_from_metal(metal, width_mm, height_mm)
