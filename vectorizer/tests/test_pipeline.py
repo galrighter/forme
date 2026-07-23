@@ -32,7 +32,9 @@ def test_pipeline_approves_faithful_trace(fixture_png: bytes) -> None:
     m = sel.metrics
     assert m.iou >= 0.99
     assert m.topology_ok
-    assert m.max_contour_deviation_mm <= 0.15  # border-snap keeps this tight
+    # mean deviation is the real fidelity guarantee; max rises at rounded
+    # corners once Chaikin smoothing (SMOOTH_ITERS) is on by default.
+    assert m.mean_contour_deviation_mm <= 0.05
     assert m.source_topology.holes == m.vector_topology.holes
 
 
