@@ -15,7 +15,7 @@ export interface VectorizeResult {
 }
 
 function vectorizerUrl(): string {
-  return process.env.VECTORIZER_URL || "https://vec.powdercoat.co.il";
+  return process.env.VECTORIZER_URL || "https://vec.rmjewel.com";
 }
 
 export async function vectorizeImage(

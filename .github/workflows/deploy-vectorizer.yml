@@ -59,7 +59,7 @@ jobs:
           PORT: ${{ secrets.HETZNER_PORT }}
           VTOKEN: ${{ secrets.VECTORIZER_TOKEN }}
           # HTTPS hostname for the vectorizer (Cloudflare Workers can't call raw-IP HTTP).
-          VDOMAIN: ${{ vars.VECTORIZER_DOMAIN || 'vec.powdercoat.co.il' }}
+          VDOMAIN: ${{ vars.VECTORIZER_DOMAIN || 'vec.rmjewel.com' }}
         run: |
           ssh -i ~/.ssh/deploy_key -p "${PORT:-22}" "$USER@$HOST" "VTOKEN='$VTOKEN' VDOMAIN='$VDOMAIN' bash -s" <<'REMOTE'
           set -euo pipefail

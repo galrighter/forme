@@ -9,6 +9,7 @@
     "binding": "ASSETS"
   },
   "routes": [
+    { "pattern": "studio.rmjewel.com", "custom_domain": true },
     { "pattern": "studio.powdercoat.co.il", "custom_domain": true }
   ],
   "observability": {
