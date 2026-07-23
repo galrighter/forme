@@ -21,7 +21,7 @@ function vectorizerUrl(): string {
 export async function vectorizeImage(
   bytes: Uint8Array,
   mediaType: string,
-  opts: { heightMm: number; colorKey: "warm" | "dark" | "saturation" },
+  opts: { heightMm: number; colorKey: "warm" | "dark" | "saturation" | "auto" },
 ): Promise<VectorizeResult> {
   const form = new FormData();
   form.append("image", new Blob([bytes as BlobPart], { type: mediaType }), "design.png");
@@ -67,7 +67,7 @@ export async function vectorizeImage(
 export async function vectorizeImageDebug(
   bytes: Uint8Array,
   mediaType: string,
-  opts: { heightMm: number; colorKey: "warm" | "dark" | "saturation" },
+  opts: { heightMm: number; colorKey: "warm" | "dark" | "saturation" | "auto" },
 ): Promise<Record<string, unknown>> {
   const form = new FormData();
   form.append("image", new Blob([bytes as BlobPart], { type: mediaType }), "design.png");
@@ -106,6 +106,7 @@ export async function ingestCutouts(opts: {
   derivedLength: number;
   userPrompt: string | null;
   renderPngPath: string | null;
+  metrics?: VectorizeResult["metrics"];
 }): Promise<IngestResult> {
   const { design, cutoutsSvg, derivedLength } = opts;
   const lengthMm = derivedLength > 0 ? derivedLength : Number(design.length_mm);
@@ -133,8 +134,8 @@ export async function ingestCutouts(opts: {
     source: "generate",
     user_prompt: opts.userPrompt,
     annotation_png_path: null,
-    // שומרים את נתיב ההדמיה בתוך הדוח (jsonb) — בלי מיגרציה של סכימה.
-    validation_report: { ...report, renderPngPath: opts.renderPngPath },
+    // שומרים נתיב הדמיה + מדדי vectorizer בתוך הדוח (jsonb) — בלי מיגרציה. משמש ליומן הבק־אופיס.
+    validation_report: { ...report, renderPngPath: opts.renderPngPath, vectorizer: opts.metrics ?? null },
     validation_status: report.status,
   });
 

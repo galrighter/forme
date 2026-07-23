@@ -31,6 +31,27 @@ def metal_score(rgb: np.ndarray, key: str) -> np.ndarray:
     return cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV)[:, :, 1]  # saturation
 
 
+def _separation(score: np.ndarray) -> tuple[float, float]:
+    """(class separation, foreground ratio) for an Otsu split of a score field."""
+    t, _ = cv2.threshold(score, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
+    fg = score > t
+    ratio = float(fg.mean())
+    if ratio <= 0.02 or ratio >= 0.98:
+        return 0.0, ratio
+    sep = (float(score[fg].mean()) - float(score[~fg].mean())) / (float(score.std()) + 1e-6)
+    return sep, ratio
+
+
+def choose_key(rgb: np.ndarray) -> str:
+    """Auto-pick the colour key that best separates metal from background."""
+    best, best_sep = "warm", -1.0
+    for key in ("warm", "dark", "saturation"):
+        sep, ratio = _separation(metal_score(rgb, key))
+        if 0.05 < ratio < 0.95 and sep > best_sep:
+            best, best_sep = key, sep
+    return best
+
+
 def despeckle(mask: np.ndarray, min_frac: float) -> np.ndarray:
     """Remove small metal specks and fill small pinholes — keeps real cutouts.
 
@@ -86,10 +107,12 @@ def condition_png(
     min_frac: float = 0.0004,
     target_px: int = 3600,
     blur: float = 3.0,
-) -> tuple[bytes, float]:
-    """Condition raw image bytes → (two-tone PNG bytes, width_mm)."""
+) -> tuple[bytes, float, str]:
+    """Condition raw image bytes → (two-tone PNG bytes, width_mm, chosen_key)."""
     rgb = np.asarray(Image.open(io.BytesIO(data)).convert("RGB"))
+    if key == "auto":
+        key = choose_key(rgb)
     binary, width_mm = condition_rgb(rgb, height_mm, key, min_frac, target_px, blur)
     buf = io.BytesIO()
     Image.fromarray(binary, "L").convert("RGBA").save(buf, format="PNG")
-    return buf.getvalue(), width_mm
+    return buf.getvalue(), width_mm, key

@@ -39,7 +39,7 @@ interface StudioState {
   deleteDesign: (id: string) => Promise<void>;
   duplicateDesign: (id: string) => Promise<void>;
   generate: (prompt: string, images: Array<{ kind: "inspiration" | "annotation"; dataUrl: string }>) => Promise<boolean>;
-  vectorize: (dataUrl: string, colorKey?: "warm" | "dark" | "saturation") => Promise<boolean>;
+  vectorize: (dataUrl: string, colorKey?: "warm" | "dark" | "saturation" | "auto") => Promise<boolean>;
   gotoVersion: (idx: number) => Promise<void>;
   setTab: (t: "flat" | "3d" | "render") => void;
   setTool: (t: AnnotationTool) => void;
@@ -195,7 +195,7 @@ export const useStudio = create<StudioState>((set, get) => ({
     }
   },
 
-  vectorize: async (dataUrl, colorKey = "warm") => {
+  vectorize: async (dataUrl, colorKey = "auto") => {
     const d = get().design;
     if (!d) return false;
     set({ genStatus: "generating", genError: null });

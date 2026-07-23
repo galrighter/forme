@@ -51,7 +51,7 @@ async def create_job(
         raise HTTPException(413, detail={"error_code": "FILE_TOO_LARGE"})
     if dark_region_role not in ("metal", "background"):
         raise HTTPException(400, detail={"error_code": "INVALID_DIMENSIONS", "message": "bad dark_region_role"})
-    if color_key not in ("warm", "dark", "saturation"):
+    if color_key not in ("warm", "dark", "saturation", "auto"):
         raise HTTPException(400, detail={"error_code": "INVALID_DIMENSIONS", "message": "bad color_key"})
     if not condition and width_mm <= 0:
         raise HTTPException(400, detail={"error_code": "INVALID_DIMENSIONS", "message": "width_mm required unless condition=true"})

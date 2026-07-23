@@ -104,6 +104,32 @@ export async function insertVersion(v: {
 }
 
 /** מכסת בקשות יומית: מספר הגרסאות שנוצרו היום לכל עיצובי הפרופיל. */
+export interface RecentVersionRow extends VersionRow {
+  design_name: string;
+  design_width_mm: number;
+}
+
+/** גרסאות אחרונות מכל העיצובים (לבק־אופיס) — עם שם העיצוב ומידותיו. */
+export async function listRecentVersions(limit = 60): Promise<RecentVersionRow[]> {
+  const sb = supabaseAdmin();
+  const { data, error } = await sb
+    .from("design_versions")
+    .select(
+      "id, design_id, version_no, source, user_prompt, validation_status, created_at, svg, validation_report, annotation_png_path, designs(name, width_mm)",
+    )
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw new Error(error.message);
+  const rows = (data ?? []) as unknown as Array<
+    VersionRow & { designs: { name: string; width_mm: number } | null }
+  >;
+  return rows.map((r) => ({
+    ...r,
+    design_name: r.designs?.name ?? "—",
+    design_width_mm: Number(r.designs?.width_mm ?? 0),
+  }));
+}
+
 export async function countTodayGenerations(profileId: string): Promise<number> {
   const sb = supabaseAdmin();
   const startOfDay = new Date();
