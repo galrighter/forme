@@ -13,7 +13,7 @@ export const maxDuration = 300;
 const schema = z.object({
   designId: z.string().uuid(),
   image: z.object({ dataUrl: z.string().max(8_000_000) }),
-  colorKey: z.enum(["warm", "dark", "saturation"]).default("warm"),
+  colorKey: z.enum(["warm", "dark", "saturation", "auto"]).default("auto"),
 });
 
 const ALLOWED_MEDIA = new Set(["image/png", "image/jpeg", "image/webp"]);
@@ -43,6 +43,7 @@ export async function POST(req: Request) {
       derivedLength: widthMm,
       userPrompt: null,
       renderPngPath,
+      metrics,
     });
 
     return NextResponse.json({ version, report, geometry, lengthMm, vectorizer: metrics });

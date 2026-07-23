@@ -15,7 +15,7 @@ const schema = z.object({
   prompt: z.string().max(4000).optional(),
   image: z.object({ dataUrl: z.string().max(8_000_000) }).nullable().optional(),
   heightMm: z.number().min(1).max(100).default(15),
-  colorKey: z.enum(["warm", "dark", "saturation"]).default("warm"),
+  colorKey: z.enum(["warm", "dark", "saturation", "auto"]).default("auto"),
 });
 
 const ALLOWED_MEDIA = new Set(["image/png", "image/jpeg", "image/webp"]);
