@@ -63,6 +63,31 @@ export async function vectorizeImage(
   };
 }
 
+/** מריץ את ה-vectorizer במצב debug ומחזיר את כל האבחון (כולל בכשל) — לבק־אופיס. */
+export async function vectorizeImageDebug(
+  bytes: Uint8Array,
+  mediaType: string,
+  opts: { heightMm: number; colorKey: "warm" | "dark" | "saturation" },
+): Promise<Record<string, unknown>> {
+  const form = new FormData();
+  form.append("image", new Blob([bytes as BlobPart], { type: mediaType }), "design.png");
+  form.append("height_mm", String(opts.heightMm));
+  form.append("condition", "true");
+  form.append("color_key", opts.colorKey);
+  form.append("debug", "true");
+
+  const headers: Record<string, string> = {};
+  if (process.env.VECTORIZER_TOKEN) headers.Authorization = `Bearer ${process.env.VECTORIZER_TOKEN}`;
+
+  let resp: Response;
+  try {
+    resp = await fetch(`${vectorizerUrl()}/api/jobs`, { method: "POST", body: form, headers });
+  } catch (e) {
+    throw new ApiError("vectorizer_unreachable", `Could not reach vectorizer: ${(e as Error).message}`, 502);
+  }
+  return (await resp.json().catch(() => ({}))) as Record<string, unknown>;
+}
+
 export interface IngestResult {
   version: VersionRow;
   report: ValidationReport;

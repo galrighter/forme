@@ -34,6 +34,7 @@ class PipelineResult:
     image: ValidatedImage
     width_mm: float
     height_mm: float
+    conditioned_png: Optional[bytes] = None
 
 
 def _mm_per_px(image: ValidatedImage, width_mm: float, height_mm: float) -> float:
@@ -62,8 +63,6 @@ def _build_candidate(
         metal = geometry.snap_to_bounds(
             geometry.smooth_chaikin(metal, SETTINGS.smooth_iters), width_mm, height_mm, tol=1.5 * mm_per_px
         )
-    if metal.is_empty:
-        return None
     if metal.is_empty:
         return None
     cutouts = geometry.cutouts_from_metal(metal, width_mm, height_mm)
@@ -107,11 +106,13 @@ def run_pipeline(
     # Optional conditioning: turn a raw shaded/coloured render into a clean
     # smooth two-tone image first. width_mm is derived from the cropped metal,
     # and the conditioned image is black=metal, so the role becomes "metal".
+    conditioned_png: Optional[bytes] = None
     if condition:
         from .core.conditioning import condition_png
 
         data, width_mm = condition_png(data, height_mm, color_key)
         dark_region_role = "metal"
+        conditioned_png = data  # keep for the debug view
 
     image = load_and_validate(data, width_mm, height_mm)
 
@@ -151,7 +152,87 @@ def run_pipeline(
         image=image,
         width_mm=width_mm,
         height_mm=height_mm,
+        conditioned_png=conditioned_png,
     )
+
+
+def build_debug(res: PipelineResult) -> dict:
+    """Full per-stage diagnostic bundle for the back-office view.
+
+    Base64 images for each stage + every candidate's metrics + a staged
+    pass/fail timeline so the first failing gate is obvious.
+    """
+    import base64
+
+    from .config import SETTINGS
+
+    def b64(data: bytes) -> str:
+        return base64.b64encode(data).decode()
+
+    images: dict[str, str] = {}
+    if res.conditioned_png is not None:
+        images["conditioned"] = b64(res.conditioned_png)
+    if res.rendered_mask is not None:
+        images["rendered"] = b64(mask_png(res.rendered_mask))
+        images["overlay"] = b64(overlay_image(res.image, res.rendered_mask))
+        images["difference"] = b64(difference_image(res.source_mask, res.rendered_mask))
+
+    def cand_dict(c) -> dict:
+        m = c.metrics
+        return {
+            "candidate_id": c.candidate_id,
+            "threshold": c.threshold,
+            "tolerance_mm": c.tolerance_mm,
+            "iou": round(m.iou, 4),
+            "mean_dev_mm": round(m.mean_contour_deviation_mm, 4),
+            "max_dev_mm": round(m.max_contour_deviation_mm, 4),
+            "source_holes": m.source_topology.holes,
+            "vector_holes": m.vector_topology.holes,
+            "topology_ok": m.topology_ok,
+            "anchors": c.geometry_stats.anchor_point_count,
+            "score": round(c.score, 4),
+            "rejected_reason": c.rejected_reason,
+            "selected": c is res.selection.selected,
+        }
+
+    cands = sorted(res.candidates, key=lambda c: c.metrics.iou, reverse=True)
+    sel = res.selection.selected
+
+    # staged pass/fail timeline — first non-ok stage is the failure point.
+    stages = []
+    stages.append({"name": "conditioning", "status": "ok" if res.conditioned_png else "skip",
+                   "detail": "colour-key + crop + smooth" if res.conditioned_png else "input already two-tone"})
+    stages.append({"name": "tracing", "status": "ok" if res.candidates else "fail",
+                   "detail": f"{len(res.candidates)} candidates"})
+    stages.append({"name": "smoothing", "status": "ok" if SETTINGS.smooth_iters > 0 else "skip",
+                   "detail": f"Chaikin x{SETTINGS.smooth_iters}"})
+    if sel is not None:
+        m = sel.metrics
+        stages.append({"name": "topology", "status": "ok" if m.topology_ok else "fail",
+                       "detail": f"source {m.source_topology.holes} holes / vector {m.vector_topology.holes}"})
+        stages.append({"name": "fidelity", "status": "ok" if res.status == "approved" else "warn",
+                       "detail": f"IoU {m.iou:.3f}, mean {m.mean_contour_deviation_mm:.3f}mm, max {m.max_contour_deviation_mm:.3f}mm"})
+    else:
+        best = cands[0] if cands else None
+        detail = (f"best IoU {best.metrics.iou:.3f}, {best.rejected_reason}" if best else "no candidate")
+        stages.append({"name": "gate", "status": "fail", "detail": detail})
+
+    return {
+        "status": res.status,
+        "width_mm": res.width_mm,
+        "height_mm": res.height_mm,
+        "smooth_iters": SETTINGS.smooth_iters,
+        "gates": {
+            "min_iou_hard": SETTINGS.min_iou_hard,
+            "target_iou": SETTINGS.target_iou,
+            "max_mean_deviation_mm": SETTINGS.max_mean_deviation_mm,
+            "max_max_deviation_mm": SETTINGS.max_max_deviation_mm,
+        },
+        "images": images,
+        "candidates": [cand_dict(c) for c in cands],
+        "stages": stages,
+        "warnings": res.selection.warnings,
+    }
 
 
 def to_result_dict(res: PipelineResult) -> dict:

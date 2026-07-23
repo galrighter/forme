@@ -44,6 +44,7 @@ async def create_job(
     output_mode: str = Form("both"),
     condition: bool = Form(False),
     color_key: str = Form("warm"),
+    debug: bool = Form(False),
 ) -> JSONResponse:
     data = await image.read()
     if len(data) > SETTINGS.max_upload_mb * 1_000_000:
@@ -98,6 +99,8 @@ async def create_job(
     if sel is not None:
         payload["cutouts_svg"] = sel.cutouts_svg
         payload["metal_svg"] = sel.metal_svg
+    if debug:
+        payload["debug"] = pipeline.build_debug(res)
     return JSONResponse(status_code=200, content=payload)
 
 
