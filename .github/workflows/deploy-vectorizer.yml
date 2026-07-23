@@ -52,35 +52,46 @@ jobs:
             -e "ssh -i ~/.ssh/deploy_key -p ${PORT:-22}" \
             vectorizer/ "$USER@$HOST:~/forme-vectorizer/"
 
-      - name: Build and run container
+      - name: Build and run container (behind Caddy HTTPS)
         env:
           HOST: ${{ secrets.HETZNER_HOST }}
           USER: ${{ secrets.HETZNER_USER }}
           PORT: ${{ secrets.HETZNER_PORT }}
           VTOKEN: ${{ secrets.VECTORIZER_TOKEN }}
+          # HTTPS hostname for the vectorizer (Cloudflare Workers can't call raw-IP HTTP).
+          VDOMAIN: ${{ vars.VECTORIZER_DOMAIN || 'vec.powdercoat.co.il' }}
         run: |
-          ssh -i ~/.ssh/deploy_key -p "${PORT:-22}" "$USER@$HOST" "VTOKEN='$VTOKEN' bash -s" <<'REMOTE'
+          ssh -i ~/.ssh/deploy_key -p "${PORT:-22}" "$USER@$HOST" "VTOKEN='$VTOKEN' VDOMAIN='$VDOMAIN' bash -s" <<'REMOTE'
           set -euo pipefail
-          # install Docker if the box doesn't have it yet
           if ! command -v docker >/dev/null 2>&1; then
-            echo "Docker not found; installing via get.docker.com"
-            curl -fsSL https://get.docker.com | sh
+            echo "Docker not found; installing via get.docker.com"; curl -fsSL https://get.docker.com | sh
           fi
           cd ~/forme-vectorizer
           docker build -t forme-vectorizer .
           docker rm -f forme-vectorizer 2>/dev/null || true
-          # published on all interfaces; the bearer token (VECTORIZER_TOKEN) gates the
-          # job endpoints. Put a TLS reverse proxy in front before production traffic.
+          # bind to localhost only; Caddy terminates TLS and reverse-proxies to it.
           docker run -d --name forme-vectorizer --restart unless-stopped \
             -e VECTORIZER_TOKEN="${VTOKEN:-}" \
-            -p 8000:8000 forme-vectorizer
+            -p 127.0.0.1:8000:8000 forme-vectorizer
           for i in $(seq 1 20); do
-            if curl -fsS http://127.0.0.1:8000/api/health >/dev/null 2>&1; then
-              echo "vectorizer healthy"; curl -s http://127.0.0.1:8000/api/health; exit 0
-            fi
+            if curl -fsS http://127.0.0.1:8000/api/health >/dev/null 2>&1; then echo "vectorizer healthy"; break; fi
             sleep 2
           done
-          echo "vectorizer failed health check"; docker logs --tail 50 forme-vectorizer; exit 1
+
+          # Caddy: automatic HTTPS (Let's Encrypt) for the vectorizer hostname.
+          if ! command -v caddy >/dev/null 2>&1; then
+            echo "Installing Caddy"
+            apt-get update -qq
+            apt-get install -y -qq debian-keyring debian-archive-keyring apt-transport-https curl gnupg
+            curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+            curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | tee /etc/apt/sources.list.d/caddy-stable.list >/dev/null
+            apt-get update -qq && apt-get install -y -qq caddy
+          fi
+          printf '%s {\n\treverse_proxy 127.0.0.1:8000\n}\n' "$VDOMAIN" > /etc/caddy/Caddyfile
+          systemctl restart caddy
+          sleep 5
+          echo "Caddy status:"; systemctl is-active caddy || (journalctl -u caddy --no-pager -n 30; exit 1)
+          echo "deployed: vectorizer on 127.0.0.1:8000, Caddy serving https://$VDOMAIN"
           REMOTE
 
       - name: Clean up SSH key
