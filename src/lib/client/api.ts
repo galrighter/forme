@@ -68,6 +68,19 @@ export const api = {
       { method: "POST", body: JSON.stringify(input) },
     ),
 
+  vectorize: (input: {
+    designId: string;
+    image: { dataUrl: string };
+    colorKey?: "warm" | "dark" | "saturation";
+  }) =>
+    call<{
+      version: Version;
+      report: ValidationReport;
+      geometry: Geometry | null;
+      lengthMm: number;
+      vectorizer: { iou?: number; holes?: number; meanDeviationMm?: number };
+    }>("/api/vectorize", { method: "POST", body: JSON.stringify(input) }),
+
   validate: (input: {
     svg: string;
     productType: "bracelet" | "ring";
