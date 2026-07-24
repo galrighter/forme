@@ -33,3 +33,5 @@ create index if not exists idx_generation_runs_design on generation_runs(design_
 
 -- RLS: אין גישת קליינט ישירה — הכול דרך service role שעוקף RLS.
 alter table generation_runs enable row level security;
+
+-- re-trigger: apply generation_runs via the Session pooler (see header).
