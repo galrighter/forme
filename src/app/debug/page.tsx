@@ -40,7 +40,7 @@ const STATUS_COLOR: Record<string, string> = {
   ok: "bg-green-100 text-green-800 border-green-300",
   pass: "bg-green-100 text-green-800 border-green-300",
   approved: "bg-green-100 text-green-800 border-green-300",
-  skip: "bg-stone-100 text-stone-500 border-stone-300",
+  skip: "bg-porcelain text-ink60 border-graphite/20",
   warn: "bg-amber-100 text-amber-800 border-amber-300",
   rejected: "bg-red-100 text-red-800 border-red-300",
   error: "bg-red-100 text-red-800 border-red-300",
@@ -150,54 +150,54 @@ export default function DebugPage() {
       <h1 className="mb-3 text-lg font-bold">בק־אופיס — צינור תמונה→SVG</h1>
 
       <div className="mb-4 flex gap-2">
-        <button className={`rounded-lg px-4 py-1.5 ${view === "run" ? "bg-stone-900 text-white" : "border border-stone-300"}`}
+        <button className={`rounded-[2px] px-4 py-1.5 ${view === "run" ? "bg-graphite text-white" : "border border-graphite/20"}`}
           onClick={() => setView("run")}>הרצה</button>
-        <button className={`rounded-lg px-4 py-1.5 ${view === "log" ? "bg-stone-900 text-white" : "border border-stone-300"}`}
+        <button className={`rounded-[2px] px-4 py-1.5 ${view === "log" ? "bg-graphite text-white" : "border border-graphite/20"}`}
           onClick={() => { setView("log"); if (!log) void loadLog(); }}>יומן יצירות</button>
       </div>
 
       {view === "log" && (
         <div className="grid gap-2">
           <div className="flex items-center gap-2">
-            <button className="rounded-lg border border-stone-300 px-3 py-1 text-xs hover:bg-stone-100" onClick={() => void loadLog()}>רענון</button>
-            {logBusy && <span className="text-xs text-stone-500">טוען…</span>}
-            {log && <span className="text-xs text-stone-400">{log.length} הרצות</span>}
+            <button className="rounded-[2px] border border-graphite/20 px-3 py-1 text-xs hover:bg-porcelain" onClick={() => void loadLog()}>רענון</button>
+            {logBusy && <span className="text-xs text-ink60">טוען…</span>}
+            {log && <span className="text-xs text-mist">{log.length} הרצות</span>}
           </div>
           {(log ?? []).map((it) => (
-            <div key={it.id} className="overflow-hidden rounded-xl border border-stone-200 bg-white">
+            <div key={it.id} className="overflow-hidden rounded-[2px] border border-graphite/10 bg-white">
               {/* שורת סיכום */}
               <div className="flex items-start gap-3 p-2">
                 {it.renderUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={it.renderUrl} alt="" className="h-14 w-24 shrink-0 rounded bg-stone-50 object-contain" />
+                  <img src={it.renderUrl} alt="" className="h-14 w-24 shrink-0 rounded bg-porcelain object-contain" />
                 ) : (
-                  <div className="flex h-14 w-24 shrink-0 items-center justify-center rounded bg-stone-100 text-[10px] text-stone-400">אין הדמיה</div>
+                  <div className="flex h-14 w-24 shrink-0 items-center justify-center rounded bg-porcelain text-[10px] text-mist">אין הדמיה</div>
                 )}
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-1.5">
                     <span className={`rounded border px-1.5 text-xs ${STATUS_COLOR[it.status] ?? ""}`}>{it.status}</span>
-                    <span className="rounded border border-stone-300 bg-stone-50 px-1.5 text-xs text-stone-600">{SOURCE_LABEL[it.source] ?? it.source}</span>
-                    {it.productType && <span className="text-xs text-stone-500">{it.productType === "ring" ? "טבעת" : "צמיד"}</span>}
-                    {it.metrics?.iou != null && <span className="text-xs text-stone-500">IoU {it.metrics.iou.toFixed(3)}</span>}
-                    {it.metrics?.holes != null && <span className="text-xs text-stone-500">· {it.metrics.holes} חורים</span>}
-                    {it.durationMs != null && <span className="text-xs text-stone-400">· {(it.durationMs / 1000).toFixed(1)}s</span>}
+                    <span className="rounded border border-graphite/20 bg-porcelain px-1.5 text-xs text-ink60">{SOURCE_LABEL[it.source] ?? it.source}</span>
+                    {it.productType && <span className="text-xs text-ink60">{it.productType === "ring" ? "טבעת" : "צמיד"}</span>}
+                    {it.metrics?.iou != null && <span className="text-xs text-ink60">IoU {it.metrics.iou.toFixed(3)}</span>}
+                    {it.metrics?.holes != null && <span className="text-xs text-ink60">· {it.metrics.holes} חורים</span>}
+                    {it.durationMs != null && <span className="text-xs text-mist">· {(it.durationMs / 1000).toFixed(1)}s</span>}
                   </div>
-                  {it.prompt && <div className="mt-0.5 break-words text-xs text-stone-600">{it.prompt}</div>}
+                  {it.prompt && <div className="mt-0.5 break-words text-xs text-ink60">{it.prompt}</div>}
                   {it.error && <div className="mt-0.5 break-words text-xs text-red-600">שגיאה: {it.error}</div>}
-                  <div className="mt-0.5 text-[10px] text-stone-400">{new Date(it.createdAt).toLocaleString("he-IL")}{it.colorKey ? ` · צבע ${it.colorKey}` : ""}</div>
+                  <div className="mt-0.5 text-[10px] text-mist">{new Date(it.createdAt).toLocaleString("he-IL")}{it.colorKey ? ` · צבע ${it.colorKey}` : ""}</div>
                 </div>
                 <div className="flex shrink-0 flex-col gap-1">
-                  <button className="rounded-lg border border-stone-300 px-2 py-1 text-xs hover:bg-stone-100"
+                  <button className="rounded-[2px] border border-graphite/20 px-2 py-1 text-xs hover:bg-porcelain"
                     onClick={() => setExpanded(expanded === it.id ? null : it.id)}>{expanded === it.id ? "סגור" : "שלבים"}</button>
                   {it.renderUrl && (
-                    <button className="rounded-lg border border-amber-400 bg-amber-50 px-2 py-1 text-xs text-amber-800 hover:bg-amber-100"
+                    <button className="rounded-[2px] border border-amber-400 bg-amber-50 px-2 py-1 text-xs text-amber-800 hover:bg-amber-100"
                       onClick={() => void openInDebug(it.renderUrl!)}>הרץ מחדש</button>
                   )}
                 </div>
               </div>
               {/* פירוט מלא */}
               {expanded === it.id && (
-                <div className="border-t border-stone-100 bg-stone-50 p-3">
+                <div className="border-t border-graphite/10 bg-porcelain p-3">
                   <Diagnostics
                     images={{
                       render: it.renderUrl,
@@ -214,13 +214,13 @@ export default function DebugPage() {
               )}
             </div>
           ))}
-          {log && log.length === 0 && !logBusy && <div className="text-stone-400">אין הרצות עדיין.</div>}
+          {log && log.length === 0 && !logBusy && <div className="text-mist">אין הרצות עדיין.</div>}
         </div>
       )}
 
-      {view === "run" && <div className="mb-4 grid gap-2 rounded-xl border border-stone-200 bg-white p-3">
+      {view === "run" && <div className="mb-4 grid gap-2 rounded-[2px] border border-graphite/10 bg-white p-3">
         <textarea
-          className="min-h-16 w-full rounded-lg border border-stone-300 p-2"
+          className="min-h-16 w-full rounded-[2px] border border-graphite/20 p-2"
           placeholder="פרומפט לעיצוב (למסלול טקסט→הדמיה)…"
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
@@ -232,46 +232,46 @@ export default function DebugPage() {
               setImage(f ? await fileToDataUrl(f) : null);
               setImageName(f ? f.name : null);
             }} />
-          <button type="button" className="rounded-lg border border-stone-300 bg-stone-50 px-3 py-1.5 hover:bg-stone-100"
+          <button type="button" className="rounded-[2px] border border-graphite/20 bg-porcelain px-3 py-1.5 hover:bg-porcelain"
             onClick={() => fileRef.current?.click()}>
             📎 העלאת תמונה
           </button>
           {imageName && (
-            <span className="text-xs text-stone-600">{imageName}
+            <span className="text-xs text-ink60">{imageName}
               <button className="ms-1 text-rose-600" onClick={() => { setImage(null); setImageName(null); if (fileRef.current) fileRef.current.value = ""; }}>✕</button>
             </span>
           )}
           <label className="flex items-center gap-1">מוצר:
-            <select className="rounded border border-stone-300 p-1" value={productType} onChange={(e) => setProductType(e.target.value)}>
+            <select className="rounded border border-graphite/20 p-1" value={productType} onChange={(e) => setProductType(e.target.value)}>
               <option value="bracelet">צמיד</option>
               <option value="ring">טבעת</option>
             </select>
           </label>
           <label className="flex items-center gap-1">רוחב (מ״מ):
-            <input type="number" className="w-16 rounded border border-stone-300 p-1" value={heightMm}
+            <input type="number" className="w-16 rounded border border-graphite/20 p-1" value={heightMm}
               onChange={(e) => setHeightMm(Number(e.target.value))} />
           </label>
           <label className="flex items-center gap-1">צבע:
-            <select className="rounded border border-stone-300 p-1" value={colorKey} onChange={(e) => setColorKey(e.target.value)}>
+            <select className="rounded border border-graphite/20 p-1" value={colorKey} onChange={(e) => setColorKey(e.target.value)}>
               <option value="auto">אוטומטי</option>
               <option value="warm">warm (פליז)</option>
               <option value="dark">dark</option>
               <option value="saturation">saturation</option>
             </select>
           </label>
-          <button className="rounded-lg bg-stone-900 px-5 py-1.5 text-white disabled:opacity-60" disabled={busy} onClick={() => void run()}>
+          <button className="rounded-[2px] bg-graphite px-5 py-1.5 text-white disabled:opacity-60" disabled={busy} onClick={() => void run()}>
             {busy ? `מריץ… ${elapsed}s` : "הרץ"}
           </button>
         </div>
         {busy && (
-          <div className="flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-amber-800">
+          <div className="flex items-center gap-2 rounded-[2px] bg-amber-50 px-3 py-2 text-amber-800">
             <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-amber-300 border-t-amber-700" />
             מייצר הדמיה וממיר ל-SVG… זה לוקח בערך 30–60 שניות, אל תסגור את הדף.
           </div>
         )}
       </div>}
 
-      {view === "run" && error && <div className="mb-4 break-words rounded-lg border border-red-300 bg-red-50 p-3 text-red-800">שגיאה: {error}</div>}
+      {view === "run" && error && <div className="mb-4 break-words rounded-[2px] border border-red-300 bg-red-50 p-3 text-red-800">שגיאה: {error}</div>}
 
       {view === "run" && debug && (
         <Diagnostics
@@ -289,7 +289,7 @@ export default function DebugPage() {
       )}
 
       {view === "run" && result && !debug && (
-        <div className="rounded-xl border border-amber-300 bg-amber-50 p-3">
+        <div className="rounded-[2px] border border-amber-300 bg-amber-50 p-3">
           <div className="mb-1 font-semibold text-amber-800">אין פירוק שלבים — תגובת המנוע הגולמית:</div>
           <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-all text-xs">{JSON.stringify(result, null, 2)}</pre>
         </div>
@@ -310,14 +310,14 @@ function Diagnostics({ images, renderModel, svg, debug }: {
     <div className="grid gap-4">
       {/* timeline */}
       {(stages.length > 0 || debug?.status) && (
-        <div className="rounded-xl border border-stone-200 bg-white p-3">
+        <div className="rounded-[2px] border border-graphite/10 bg-white p-3">
           <div className="mb-2 font-semibold">
             שלבים — סטטוס כללי:{" "}
             <span className={`rounded border px-2 py-0.5 ${STATUS_COLOR[debug?.status ?? ""] ?? STATUS_COLOR.fail}`}>{debug?.status ?? "—"}</span>
           </div>
           <div className="flex flex-wrap gap-2">
             {stages.map((s, i) => (
-              <div key={i} className={`rounded-lg border px-3 py-2 ${STATUS_COLOR[s.status] ?? ""}`}>
+              <div key={i} className={`rounded-[2px] border px-3 py-2 ${STATUS_COLOR[s.status] ?? ""}`}>
                 <div className="font-medium">{s.name}</div>
                 <div className="text-xs opacity-80">{s.detail}</div>
               </div>
@@ -327,7 +327,7 @@ function Diagnostics({ images, renderModel, svg, debug }: {
             <div className="mt-2 break-words text-xs text-amber-700">אזהרות: {warnings.join(" · ")}</div>
           )}
           {(gates.min_iou_hard != null || debug?.color_key != null) && (
-            <div className="mt-2 text-xs text-stone-500">
+            <div className="mt-2 text-xs text-ink60">
               צבע־מפתח: {debug?.color_key ?? "—"}
               {gates.min_iou_hard != null && <> · שערים: IoU≥{gates.min_iou_hard} · סטייה ממוצעת≤{gates.max_mean_deviation_mm}מ״מ · מקס≤{gates.max_max_deviation_mm}מ״מ</>}
               {debug?.smooth_iters != null && <> · החלקה x{debug.smooth_iters}</>}
@@ -349,10 +349,10 @@ function Diagnostics({ images, renderModel, svg, debug }: {
 
       {/* candidates */}
       {candidates.length > 0 && (
-        <div className="overflow-x-auto rounded-xl border border-stone-200 bg-white p-3">
+        <div className="overflow-x-auto rounded-[2px] border border-graphite/10 bg-white p-3">
           <div className="mb-2 font-semibold">מועמדים ({candidates.length})</div>
           <table className="w-full text-right text-xs">
-            <thead className="text-stone-500">
+            <thead className="text-ink60">
               <tr>
                 <th className="p-1">מזהה</th><th className="p-1">IoU</th><th className="p-1">ממוצע</th><th className="p-1">מקס</th>
                 <th className="p-1">חורים (מקור/וקטור)</th><th className="p-1">טופולוגיה</th><th className="p-1">עוגנים</th>
@@ -361,7 +361,7 @@ function Diagnostics({ images, renderModel, svg, debug }: {
             </thead>
             <tbody>
               {candidates.map((c) => (
-                <tr key={c.candidate_id} className={`border-t border-stone-100 ${c.selected ? "bg-green-50 font-medium" : ""}`}>
+                <tr key={c.candidate_id} className={`border-t border-graphite/10 ${c.selected ? "bg-green-50 font-medium" : ""}`}>
                   <td className="p-1">{c.candidate_id}{c.selected ? " ✓" : ""}</td>
                   <td className="p-1">{c.iou}</td>
                   <td className="p-1">{c.mean_dev_mm}</td>
@@ -383,19 +383,19 @@ function Diagnostics({ images, renderModel, svg, debug }: {
 
 function ImgCard({ title, src }: { title: string; src: string }) {
   return (
-    <div className="rounded-xl border border-stone-200 bg-white p-2">
-      <div className="mb-1 text-xs font-medium text-stone-600">{title}</div>
+    <div className="rounded-[2px] border border-graphite/10 bg-white p-2">
+      <div className="mb-1 text-xs font-medium text-ink60">{title}</div>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={src} alt={title} className="w-full rounded bg-stone-50 object-contain" />
+      <img src={src} alt={title} className="w-full rounded bg-porcelain object-contain" />
     </div>
   );
 }
 
 function SvgCard({ title, svg }: { title: string; svg: string }) {
   return (
-    <div className="rounded-xl border border-stone-200 bg-white p-2">
-      <div className="mb-1 text-xs font-medium text-stone-600">{title}</div>
-      <div className="w-full rounded bg-stone-800 p-2 [&_svg]:w-full [&_svg]:fill-amber-400" dangerouslySetInnerHTML={{ __html: svg }} />
+    <div className="rounded-[2px] border border-graphite/10 bg-white p-2">
+      <div className="mb-1 text-xs font-medium text-ink60">{title}</div>
+      <div className="w-full rounded bg-graphite p-2 [&_svg]:w-full [&_svg]:fill-amber-400" dangerouslySetInnerHTML={{ __html: svg }} />
     </div>
   );
 }

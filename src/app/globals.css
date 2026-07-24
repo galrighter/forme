@@ -24,6 +24,11 @@ html, body {
   overscroll-behavior: none;
 }
 
+/* פונט הגוף אחיד לכל האתר — כולל הסטודיו (עורך ה-CAD). */
+body {
+  font-family: var(--font-body);
+}
+
 /* מניעת זום כפול-הקשה על iOS בתוך הקנבס */
 .touch-none-canvas {
   touch-action: none;
