@@ -1,6 +1,10 @@
 -- יומן הרצות הצינור (image→SVG) לבק־אופיס. שומר כל הרצה — הצלחה, דחייה או שגיאה —
 -- עם כל שלבי הביניים, כדי שנוכל לאבחן תלונות ולכייל את איכות ההמרה יחד.
 -- נפרד מ-design_versions: גרסה נשמרת רק בהצלחה ומצריכה עיצוב; כאן שומרים גם כשלים.
+--
+-- הערה תפעולית: ה-migrate workflow חייב SUPABASE_DB_URL של ה-Session pooler
+-- (host: *.pooler.supabase.com, IPv4). החיבור הישיר (db.<ref>.supabase.co) הוא
+-- IPv6-only ו-runners של GitHub Actions לא מגיעים אליו ("Network is unreachable").
 
 create table if not exists generation_runs (
   id uuid primary key default gen_random_uuid(),

@@ -1,9 +1,12 @@
 name: Apply Supabase migrations
 
 # מריץ את קובצי supabase/migrations/ מול ה-DB בסדר שמות.
-# דורש secret בשם SUPABASE_DB_URL (מחרוזת חיבור Postgres מלאה מ-Supabase:
-# Settings → Database → Connection string, URI). בלי ה-secret הזה יש להריץ
-# את קובצי ה-SQL ידנית ב-SQL Editor של Supabase.
+# דורש secret בשם SUPABASE_DB_URL — חובה מחרוזת של ה-SESSION POOLER
+# (Connect → Session pooler; host: *.pooler.supabase.com, פורט 5432). זה IPv4.
+# אין להשתמש בחיבור הישיר (db.<ref>.supabase.co) — הוא IPv6-only ו-runners של
+# GitHub Actions נכשלים עליו עם "Network is unreachable".
+# תווים מיוחדים בסיסמה חייבים percent-encoding (למשל ! → %21).
+# בלי ה-secret הזה יש להריץ את קובצי ה-SQL ידנית ב-SQL Editor של Supabase.
 
 on:
   workflow_dispatch:
