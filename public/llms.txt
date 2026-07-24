@@ -4,7 +4,7 @@
 > rings from a plain-language description. You describe a cutout pattern in
 > words; an AI generates it, automatically checks it is manufacturable
 > (bridge widths, hole sizes, margins, roll-forming survivability), and
-> exports a laser-cutting file (DXF in millimetres). Architectural jewelry,
+> exports a laser-cutting file (DXF in millimetres). Precision jewelry,
 > formed around you.
 
 ## Product
