@@ -117,7 +117,7 @@ export const he = {
   site: {
     brand: "RM JEWEL",
     brandHe: "אר. אם. ג'ואל",
-    tagline: "Architectural jewelry, formed around you.",
+    tagline: "Precision jewelry, formed around you.",
 
     // ניווט
     navHome: "בית",
@@ -135,7 +135,7 @@ export const he = {
     heroTitleLine1: "תכשיט שנבנה",
     heroTitleLine2: "סביבך.",
     heroTitle: "תכשיט שנבנה סביבך.",
-    heroEnglishTagline: "Architectural jewelry, formed around you.",
+    heroEnglishTagline: "Precision jewelry, formed around you.",
     heroSubtitle:
       "עצבו צמיד או טבעת פתוחים משלכם. התחילו מרעיון, שרטוט או תמונה — נהלו שיחה קצרה עם מנוע העיצוב, קבלו חלופות וערכו אותן עד לתכשיט שהוא רק שלכם.",
     heroPriceNote: "החל מ־₪310 · 10–14 ימי עבודה",
@@ -252,7 +252,7 @@ export const he = {
     contactErrorEmail: "כתובת האימייל אינה תקינה.",
 
     // פוטר
-    footerTagline: "RM JEWEL — Architectural jewelry, formed around you.",
+    footerTagline: "RM JEWEL — Precision jewelry, formed around you.",
     footerCopyright: "© 2026",
     footerRights: "כל הזכויות שמורות",
     footerBuiltWith: "מעוצב ומיוצר בישראל",
@@ -389,7 +389,7 @@ export const he = {
     ideaSubtitle:
       "כתבו, העלו שרטוט או תמונת השראה. ככל שתפרטו יותר, החלופות יהיו קרובות יותר לכוונה שלכם.",
     ideaPlaceholder:
-      "לדוגמה: צמיד עם קווים אלכסוניים דקים, תחושה אדריכלית, פתח בצד, מקום קטן לתאריך בפנים...",
+      "לדוגמה: צמיד עם קווים אלכסוניים דקים, תחושה נקייה וגיאומטרית, פתח בצד, מקום קטן לתאריך בפנים...",
     ideaUpload: "+ העלאת קובץ",
     ideaFormats: "PNG · JPG · SVG · PDF",
     ideaRights:
@@ -450,7 +450,7 @@ export const he = {
       {
         id: "s1", name: "Ridge", hebrew: "רכס", density: "בינונית", complexity: "נמוכה",
         cuts: 24, tilt: 0, gap: 6, price: 340,
-        desc: "קווים אלכסוניים מקבילים בקצב אחיד — מבנה אדריכלי רגוע.",
+        desc: "קווים אלכסוניים מקבילים בקצב אחיד — מבנה גיאומטרי רגוע.",
       },
       {
         id: "s2", name: "Fracture", hebrew: "שבר", density: "גבוהה", complexity: "בינונית",

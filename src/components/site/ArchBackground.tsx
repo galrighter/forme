@@ -1,4 +1,4 @@
-// שכבת רקע דקורטיבית "אדריכלית נועזת" — לפי ה-handoff.
+// שכבת רקע דקורטיבית גיאומטרית נועזת — לפי ה-handoff.
 // fixed, מתחת לכל התוכן (z-0), pointer-events:none. הכרטיסים אטומים ולכן נשארים נקיים.
 export default function ArchBackground() {
   return (
