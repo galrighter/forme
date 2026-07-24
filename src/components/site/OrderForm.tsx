@@ -6,7 +6,7 @@ import { he } from "@/i18n/he";
 const s = he.site;
 
 const inputCls =
-  "w-full rounded-xl border border-stone-300 bg-white px-4 py-3 text-sm text-stone-900 outline-none transition-colors focus:border-[#c9a227] focus:ring-2 focus:ring-[#c9a227]/20";
+  "w-full rounded-[2px] border border-graphite/20 bg-white px-4 py-3 text-sm text-graphite outline-none transition-colors focus:border-cobalt focus:ring-2 focus:ring-cobalt/20";
 
 type Product = "" | "bracelet" | "ring";
 
@@ -62,14 +62,14 @@ export default function OrderForm() {
 
   if (done) {
     return (
-      <div className="rounded-2xl border border-[#c9a227]/40 bg-[#c9a227]/10 p-8 text-center">
-        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#c9a227] text-stone-900">
+      <div className="rounded-[2px] border border-successgreen/40 bg-successgreen/10 p-8 text-center">
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-successgreen text-white">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="20 6 9 17 4 12" />
           </svg>
         </div>
-        <h2 className="mt-4 text-lg font-semibold text-stone-900">{s.orderSuccessTitle}</h2>
-        <p className="mt-1 text-sm text-stone-600">{s.orderSuccessBody}</p>
+        <h2 className="mt-4 text-lg font-semibold text-graphite">{s.orderSuccessTitle}</h2>
+        <p className="mt-1 text-sm text-ink60">{s.orderSuccessBody}</p>
       </div>
     );
   }
@@ -77,7 +77,7 @@ export default function OrderForm() {
   return (
     <form onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
       <div>
-        <label htmlFor="o-product" className="mb-1 block text-sm font-medium text-stone-700">
+        <label htmlFor="o-product" className="mb-1 block text-sm font-medium text-ink80">
           {s.orderProductType}
         </label>
         <select
@@ -94,7 +94,7 @@ export default function OrderForm() {
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
-          <label htmlFor="o-name" className="mb-1 block text-sm font-medium text-stone-700">
+          <label htmlFor="o-name" className="mb-1 block text-sm font-medium text-ink80">
             {s.orderName}
           </label>
           <input
@@ -107,7 +107,7 @@ export default function OrderForm() {
           />
         </div>
         <div>
-          <label htmlFor="o-phone" className="mb-1 block text-sm font-medium text-stone-700">
+          <label htmlFor="o-phone" className="mb-1 block text-sm font-medium text-ink80">
             {s.orderPhone}
           </label>
           <input
@@ -123,7 +123,7 @@ export default function OrderForm() {
       </div>
 
       <div>
-        <label htmlFor="o-email" className="mb-1 block text-sm font-medium text-stone-700">
+        <label htmlFor="o-email" className="mb-1 block text-sm font-medium text-ink80">
           {s.orderEmail}
         </label>
         <input
@@ -139,7 +139,7 @@ export default function OrderForm() {
       </div>
 
       <div>
-        <label htmlFor="o-msg" className="mb-1 block text-sm font-medium text-stone-700">
+        <label htmlFor="o-msg" className="mb-1 block text-sm font-medium text-ink80">
           {s.orderMessage}
         </label>
         <textarea
@@ -170,7 +170,7 @@ export default function OrderForm() {
       <button
         type="submit"
         disabled={submitting}
-        className="mt-1 rounded-full bg-stone-900 px-6 py-3 text-sm font-medium text-stone-50 transition-colors hover:bg-stone-700 disabled:opacity-60"
+        className="mt-1 rounded-[2px] bg-graphite px-8 py-3.5 text-sm font-semibold text-porcelain transition-colors hover:bg-graphite/90 disabled:opacity-60"
       >
         {submitting ? s.orderSubmitting : s.orderSubmit}
       </button>
