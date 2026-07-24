@@ -21,12 +21,13 @@ function openaiKey(): string | undefined {
 /** פרומפט מכוון: רנדר שטוח, top-down, פליז חם על רקע לבן — קלט אידיאלי ל-vectorizer. */
 export function buildRenderPrompt(userPrompt: string): string {
   return [
-    "A flat, top-down product photograph of a laser-cut brass bracelet cuff, laid out perfectly straight and unrolled, filling the width of the frame, on a plain solid pure-white background.",
-    "The bracelet is a single long horizontal strip of polished warm-gold brass with an intricate decorative cut-out pattern.",
-    "The cut-out openings are fully cut through, showing the pure white background through them.",
+    "A flat, top-down, orthographic product image of a laser-cut brass bracelet cuff, laid out perfectly straight and unrolled, filling the full width of the frame edge to edge, on a completely flat pure #FFFFFF white background.",
+    "The bracelet is a single long horizontal strip of solid warm-gold brass with an intricate decorative cut-out pattern.",
+    "The cut-out openings are fully cut through, showing the same pure white background through them.",
     "Design intent for the cut-out pattern: " + userPrompt + ".",
-    "Even soft studio lighting, straight overhead view, no perspective, no shadows, no reflections, no hands, no props, no text.",
-    "The brass must be a clearly warmer gold tone than the white background so the metal is easy to separate from the openings.",
+    "CRITICAL: absolutely NO drop shadow, NO cast shadow, NO ambient occlusion, NO reflection, NO gradient — the background is one uniform flat white with zero shading, and the metal sits flush like a flat vector illustration.",
+    "Perfectly even flat lighting, straight overhead orthographic view, no perspective, no bevel, no depth, no hands, no props, no text, no border framing.",
+    "High contrast: the brass is a clearly saturated warm gold, distinctly warmer and darker than the pure white, so the metal separates cleanly from the openings.",
   ].join(" ");
 }
 
