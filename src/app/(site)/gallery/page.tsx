@@ -27,7 +27,28 @@ export default function GalleryPage() {
       </h1>
       <p className="mt-3 max-w-2xl text-lg text-ink60">{s.gallerySubtitle}</p>
 
-      <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      {/* צילום מוצר אמיתי — בלוק מוביל, נבדל מרשת האיורים שמתחת */}
+      <figure className="mt-10 grid overflow-hidden border border-graphite/10 bg-white sm:grid-cols-2">
+        <div className="flex items-center justify-center bg-porcelain p-4 sm:p-6">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/ring-brass.png"
+            alt={s.galleryFeaturedAlt}
+            className="h-auto w-full max-w-md object-contain"
+          />
+        </div>
+        <figcaption className="flex flex-col justify-center gap-3 border-t border-graphite/10 p-6 sm:border-s sm:border-t-0 sm:p-10">
+          <span className="w-fit border border-graphite/15 px-2 py-1 text-xs font-medium uppercase tracking-wider text-ink60">
+            {s.galleryFeaturedTag}
+          </span>
+          <h2 className="text-2xl font-semibold tracking-tight text-graphite">
+            {s.galleryFeaturedTitle}
+          </h2>
+          <p className="text-base leading-relaxed text-ink60">{s.galleryFeaturedDesc}</p>
+        </figcaption>
+      </figure>
+
+      <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {s.galleryItems.map((item, i) => (
           <figure key={i} className="overflow-hidden border border-graphite/10 bg-white">
             <div className="flex items-center justify-center bg-porcelain p-6">
