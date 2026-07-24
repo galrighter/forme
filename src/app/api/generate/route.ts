@@ -6,11 +6,13 @@ import { getDesign, countTodayGenerations } from "@/lib/db/designs";
 import { uploadFile, decodeDataUrl } from "@/lib/db/storage";
 import { generateRenderPng } from "@/lib/llm/imagegen";
 import { LlmError, type LlmImage } from "@/lib/llm/core";
-import { vectorizeImage, ingestCutouts } from "@/lib/vectorizer";
+import { vectorizeImageFull, ingestCutouts } from "@/lib/vectorizer";
+import { persistRun } from "@/lib/runs/persist";
 
 // יצירה במסלול ה-AI (מסלול 2): טקסט/השראה → מודל תמונה (רנדר של הצמיד) →
 // קונדישנינג + vectorizer → cutouts SVG → צינור הוולידציה הקיים → גרסה.
 // זה מחליף את היצירה הישירה טקסט→SVG (ש-LLM לא הצליח בה) — עכשיו דרך הדמיה.
+// כל הרצה נשמרת ל-generation_runs (כולל דחייה/שגיאה) ליומן הבק־אופיס.
 
 export const maxDuration = 300;
 
@@ -29,8 +31,17 @@ const schema = z.object({
 const ALLOWED_MEDIA = new Set(["image/png", "image/jpeg", "image/webp"]);
 
 export async function POST(req: Request) {
+  const runId = crypto.randomUUID();
+  const startedAt = Date.now();
+  let persisted = false;
+  // מוחזק בהיקף חיצוני כדי שאפשר לשמור הרצת שגיאה גם אם נכשלנו מוקדם.
+  let designId: string | null = null;
+  let userPrompt: string | null = null;
+
   try {
     const body = await parseBody(req, schema);
+    designId = body.designId;
+    userPrompt = body.userPrompt;
     const design = await getDesign(body.designId);
 
     const used = await countTodayGenerations(design.profile_id);
@@ -53,39 +64,71 @@ export async function POST(req: Request) {
       }
     }
 
-    // 1) יצירת רנדר של הצמיד מהתיאור.
-    const render = await generateRenderPng(body.userPrompt, inspiration);
+    // 1) יצירת רנדר של הצמיד מהתיאור (מותאם לסוג המוצר — צמיד/טבעת).
+    const render = await generateRenderPng(body.userPrompt, inspiration, design.product_type);
     const renderBytes = decodeDataUrl(`data:${render.mediaType};base64,${render.base64}`).bytes;
 
     // 2) שמירת ההדמיה כדי להציג אותה לצד השרטוט.
     const renderPngPath = `renders/${design.id}/${Date.now()}.png`;
     await uploadFile(renderPngPath, renderBytes, render.mediaType);
 
-    // 3) המרת ההדמיה ל-cutouts SVG נקי דרך ה-vectorizer.
-    const { cutoutsSvg, widthMm, metrics } = await vectorizeImage(renderBytes, render.mediaType, {
+    // 3) המרת ההדמיה ל-cutouts SVG נקי (מצב debug כדי לשמור את כל שלבי הביניים).
+    const vec = await vectorizeImageFull(renderBytes, render.mediaType, {
       heightMm: Number(design.width_mm),
       colorKey: "warm",
     });
 
-    // 4) ולידציה ושמירת גרסה דרך הצינור הקיים.
+    // 4) שומרים את ההרצה ליומן *לפני* שמחליטים — כך גם דחיות נשמרות לאבחון.
+    await persistRun({
+      id: runId,
+      source: "studio",
+      designId: design.id,
+      productType: design.product_type,
+      prompt: body.userPrompt,
+      colorKey: "warm",
+      startedAt,
+      render: { path: renderPngPath, model: render.model },
+      vectorizer: vec.raw,
+    });
+    persisted = true;
+
+    if (vec.status !== "approved" || !vec.cutoutsSvg) {
+      throw new ApiError("vectorize_failed", `Vectorizer did not approve: ${vec.status}`, 422);
+    }
+
+    // 5) ולידציה ושמירת גרסה דרך הצינור הקיים.
     const { version, report, geometry, lengthMm } = await ingestCutouts({
       design,
-      cutoutsSvg,
-      derivedLength: widthMm,
+      cutoutsSvg: vec.cutoutsSvg,
+      derivedLength: vec.widthMm,
       userPrompt: body.userPrompt,
       renderPngPath,
-      metrics,
+      metrics: vec.metrics,
     });
 
     return NextResponse.json({
+      runId,
       version,
       report,
       geometry,
       lengthMm,
       render: { model: render.model, dataUrl: `data:${render.mediaType};base64,${render.base64}` },
-      vectorizer: metrics,
+      vectorizer: vec.metrics,
     });
   } catch (err) {
+    // אם עוד לא שמרנו הרצה (כשל מוקדם — יצירת הדמיה, vectorizer לא זמין) — נרשום שגיאה.
+    if (!persisted) {
+      await persistRun({
+        id: runId,
+        source: "studio",
+        designId,
+        prompt: userPrompt,
+        colorKey: "warm",
+        startedAt,
+        error: err instanceof Error ? err.message : String(err),
+        vectorizer: null,
+      });
+    }
     if (err instanceof LlmError) {
       return handleRouteError(new ApiError("llm_error", err.message, err.retriable ? 502 : 500));
     }

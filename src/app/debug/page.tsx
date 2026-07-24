@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 // בק־אופיס לתכנון: מריץ את כל הצינור (הדמיה → קונדישנינג → טרייס → החלקה →
-// שערי נאמנות) ומציג כל שלב וכל קובץ, עם סימון נקודות כשל. לא מקושר מהסטודיו.
+// שערי נאמנות) ומציג כל שלב וכל קובץ, עם סימון נקודות כשל. כל הרצה נשמרת ליומן.
 
 type Stage = { name: string; status: string; detail: string };
 type Candidate = {
@@ -11,28 +11,44 @@ type Candidate = {
   source_holes: number; vector_holes: number; anchors: number; topology_ok: boolean;
   score: number; rejected_reason: string | null; selected: boolean;
 };
-type Debug = {
-  status: string; width_mm: number; height_mm: number; smooth_iters: number; color_key: string | null;
-  gates: Record<string, number>;
-  images: Record<string, string>;
-  candidates: Candidate[];
-  stages: Stage[];
-  warnings: string[];
+type DebugMeta = {
+  status?: string; width_mm?: number; height_mm?: number; smooth_iters?: number; color_key?: string | null;
+  gates?: Record<string, number>;
+  candidates?: Candidate[];
+  stages?: Stage[];
+  warnings?: string[];
+};
+// תגובת ההרצה החיה: debug כולל images ב-base64.
+type RunDebug = DebugMeta & { images?: Record<string, string> };
+
+type StageUrls = {
+  render?: string | null; conditioned?: string | null; overlay?: string | null;
+  difference?: string | null; rendered?: string | null;
 };
 
 type LogItem = {
-  versionId: string; designId: string; designName: string; widthMm: number;
-  versionNo: number; status: string; createdAt: string; prompt: string | null;
-  renderUrl: string | null; svg: string;
-  metrics: { iou?: number; holes?: number; meanDeviationMm?: number } | null;
+  id: string; createdAt: string; source: string; productType: string | null;
+  prompt: string | null; colorKey: string | null; status: string; error: string | null;
+  durationMs: number | null; renderModel: string | null; renderUrl: string | null;
+  stages: { conditioned: string | null; overlay: string | null; difference: string | null; rendered: string | null };
+  svg: string | null;
+  metrics: { iou?: number; holes?: number; meanDeviationMm?: number; maxDeviationMm?: number } | null;
+  debug: DebugMeta | null;
 };
 
 const STATUS_COLOR: Record<string, string> = {
   ok: "bg-green-100 text-green-800 border-green-300",
   pass: "bg-green-100 text-green-800 border-green-300",
+  approved: "bg-green-100 text-green-800 border-green-300",
   skip: "bg-stone-100 text-stone-500 border-stone-300",
   warn: "bg-amber-100 text-amber-800 border-amber-300",
+  rejected: "bg-red-100 text-red-800 border-red-300",
+  error: "bg-red-100 text-red-800 border-red-300",
   fail: "bg-red-100 text-red-800 border-red-300",
+};
+
+const SOURCE_LABEL: Record<string, string> = {
+  studio: "סטודיו", debug: "בק־אופיס", upload: "העלאה",
 };
 
 function fileToDataUrl(f: File): Promise<string> {
@@ -50,6 +66,7 @@ export default function DebugPage() {
   const [imageName, setImageName] = useState<string | null>(null);
   const [heightMm, setHeightMm] = useState(15);
   const [colorKey, setColorKey] = useState("auto");
+  const [productType, setProductType] = useState("bracelet");
   const [busy, setBusy] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -59,8 +76,9 @@ export default function DebugPage() {
   const [view, setView] = useState<"run" | "log">("run");
   const [log, setLog] = useState<LogItem[] | null>(null);
   const [logBusy, setLogBusy] = useState(false);
+  const [expanded, setExpanded] = useState<string | null>(null);
 
-  const debug = (result?.debug ?? null) as Debug | null;
+  const debug = (result?.debug ?? null) as RunDebug | null;
   const svg = (result?.metal_svg ?? result?.cutouts_svg ?? null) as string | null;
 
   useEffect(() => {
@@ -82,7 +100,7 @@ export default function DebugPage() {
       const resp = await fetch("/api/debug/run", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ prompt: usePrompt || undefined, image: useImage ? { dataUrl: useImage } : null, heightMm, colorKey }),
+        body: JSON.stringify({ prompt: usePrompt || undefined, image: useImage ? { dataUrl: useImage } : null, heightMm, colorKey, productType }),
       });
       const data = await resp.json();
       if (!resp.ok) throw new Error(data?.error?.message || data?.message || `HTTP ${resp.status}`);
@@ -143,31 +161,60 @@ export default function DebugPage() {
           <div className="flex items-center gap-2">
             <button className="rounded-lg border border-stone-300 px-3 py-1 text-xs hover:bg-stone-100" onClick={() => void loadLog()}>רענון</button>
             {logBusy && <span className="text-xs text-stone-500">טוען…</span>}
+            {log && <span className="text-xs text-stone-400">{log.length} הרצות</span>}
           </div>
           {(log ?? []).map((it) => (
-            <div key={it.versionId} className="flex items-center gap-3 rounded-xl border border-stone-200 bg-white p-2">
-              {it.renderUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={it.renderUrl} alt="" className="h-14 w-24 shrink-0 rounded bg-stone-50 object-contain" />
-              ) : (
-                <div className="flex h-14 w-24 shrink-0 items-center justify-center rounded bg-stone-100 text-[10px] text-stone-400">אין הדמיה</div>
-              )}
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium">{it.designName} · v{it.versionNo}</span>
-                  <span className={`rounded border px-1.5 text-xs ${STATUS_COLOR[it.status] ?? ""}`}>{it.status}</span>
-                  {it.metrics?.iou != null && <span className="text-xs text-stone-500">IoU {it.metrics.iou.toFixed(3)} · {it.metrics.holes} חורים</span>}
+            <div key={it.id} className="overflow-hidden rounded-xl border border-stone-200 bg-white">
+              {/* שורת סיכום */}
+              <div className="flex items-start gap-3 p-2">
+                {it.renderUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={it.renderUrl} alt="" className="h-14 w-24 shrink-0 rounded bg-stone-50 object-contain" />
+                ) : (
+                  <div className="flex h-14 w-24 shrink-0 items-center justify-center rounded bg-stone-100 text-[10px] text-stone-400">אין הדמיה</div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className={`rounded border px-1.5 text-xs ${STATUS_COLOR[it.status] ?? ""}`}>{it.status}</span>
+                    <span className="rounded border border-stone-300 bg-stone-50 px-1.5 text-xs text-stone-600">{SOURCE_LABEL[it.source] ?? it.source}</span>
+                    {it.productType && <span className="text-xs text-stone-500">{it.productType === "ring" ? "טבעת" : "צמיד"}</span>}
+                    {it.metrics?.iou != null && <span className="text-xs text-stone-500">IoU {it.metrics.iou.toFixed(3)}</span>}
+                    {it.metrics?.holes != null && <span className="text-xs text-stone-500">· {it.metrics.holes} חורים</span>}
+                    {it.durationMs != null && <span className="text-xs text-stone-400">· {(it.durationMs / 1000).toFixed(1)}s</span>}
+                  </div>
+                  {it.prompt && <div className="mt-0.5 break-words text-xs text-stone-600">{it.prompt}</div>}
+                  {it.error && <div className="mt-0.5 break-words text-xs text-red-600">שגיאה: {it.error}</div>}
+                  <div className="mt-0.5 text-[10px] text-stone-400">{new Date(it.createdAt).toLocaleString("he-IL")}{it.colorKey ? ` · צבע ${it.colorKey}` : ""}</div>
                 </div>
-                {it.prompt && <div className="truncate text-xs text-stone-600">{it.prompt}</div>}
-                <div className="text-[10px] text-stone-400">{new Date(it.createdAt).toLocaleString("he-IL")}</div>
+                <div className="flex shrink-0 flex-col gap-1">
+                  <button className="rounded-lg border border-stone-300 px-2 py-1 text-xs hover:bg-stone-100"
+                    onClick={() => setExpanded(expanded === it.id ? null : it.id)}>{expanded === it.id ? "סגור" : "שלבים"}</button>
+                  {it.renderUrl && (
+                    <button className="rounded-lg border border-amber-400 bg-amber-50 px-2 py-1 text-xs text-amber-800 hover:bg-amber-100"
+                      onClick={() => void openInDebug(it.renderUrl!)}>הרץ מחדש</button>
+                  )}
+                </div>
               </div>
-              {it.renderUrl && (
-                <button className="shrink-0 rounded-lg border border-amber-400 bg-amber-50 px-3 py-1 text-xs text-amber-800 hover:bg-amber-100"
-                  onClick={() => void openInDebug(it.renderUrl!)}>פתח בדיבוג</button>
+              {/* פירוט מלא */}
+              {expanded === it.id && (
+                <div className="border-t border-stone-100 bg-stone-50 p-3">
+                  <Diagnostics
+                    images={{
+                      render: it.renderUrl,
+                      conditioned: it.stages.conditioned,
+                      overlay: it.stages.overlay,
+                      difference: it.stages.difference,
+                      rendered: it.stages.rendered,
+                    }}
+                    renderModel={it.renderModel}
+                    svg={it.svg}
+                    debug={it.debug}
+                  />
+                </div>
               )}
             </div>
           ))}
-          {log && log.length === 0 && !logBusy && <div className="text-stone-400">אין יצירות עדיין.</div>}
+          {log && log.length === 0 && !logBusy && <div className="text-stone-400">אין הרצות עדיין.</div>}
         </div>
       )}
 
@@ -194,6 +241,12 @@ export default function DebugPage() {
               <button className="ms-1 text-rose-600" onClick={() => { setImage(null); setImageName(null); if (fileRef.current) fileRef.current.value = ""; }}>✕</button>
             </span>
           )}
+          <label className="flex items-center gap-1">מוצר:
+            <select className="rounded border border-stone-300 p-1" value={productType} onChange={(e) => setProductType(e.target.value)}>
+              <option value="bracelet">צמיד</option>
+              <option value="ring">טבעת</option>
+            </select>
+          </label>
           <label className="flex items-center gap-1">רוחב (מ״מ):
             <input type="number" className="w-16 rounded border border-stone-300 p-1" value={heightMm}
               onChange={(e) => setHeightMm(Number(e.target.value))} />
@@ -218,77 +271,110 @@ export default function DebugPage() {
         )}
       </div>}
 
-      {view === "run" && error && <div className="mb-4 rounded-lg border border-red-300 bg-red-50 p-3 text-red-800">שגיאה: {error}</div>}
+      {view === "run" && error && <div className="mb-4 break-words rounded-lg border border-red-300 bg-red-50 p-3 text-red-800">שגיאה: {error}</div>}
 
       {view === "run" && debug && (
-        <div className="grid gap-4">
-          {/* timeline */}
-          <div className="rounded-xl border border-stone-200 bg-white p-3">
-            <div className="mb-2 font-semibold">
-              שלבים — סטטוס כללי:{" "}
-              <span className={`rounded border px-2 py-0.5 ${debug.status === "approved" ? STATUS_COLOR.ok : STATUS_COLOR.fail}`}>{debug.status}</span>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {debug.stages.map((s, i) => (
-                <div key={i} className={`rounded-lg border px-3 py-2 ${STATUS_COLOR[s.status] ?? ""}`}>
-                  <div className="font-medium">{s.name}</div>
-                  <div className="text-xs opacity-80">{s.detail}</div>
-                </div>
-              ))}
-            </div>
-            {debug.warnings.length > 0 && (
-              <div className="mt-2 text-xs text-amber-700">אזהרות: {debug.warnings.join(" · ")}</div>
-            )}
-            <div className="mt-2 text-xs text-stone-500">
-              צבע־מפתח: {debug.color_key ?? "—"} · שערים: IoU≥{debug.gates.min_iou_hard} · סטייה ממוצעת≤{debug.gates.max_mean_deviation_mm}מ״מ · מקס≤{debug.gates.max_max_deviation_mm}מ״מ · החלקה x{debug.smooth_iters} · אורך נגזר {debug.width_mm}מ״מ
-            </div>
-          </div>
-
-          {/* images */}
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-            {render?.dataUrl && <ImgCard title={`הדמיית AI${render.model ? ` (${render.model})` : ""}`} src={render.dataUrl} />}
-            {debug.images.conditioned && <ImgCard title="דו־גוני (קונדישנינג)" src={img(debug.images.conditioned)} />}
-            {debug.images.overlay && <ImgCard title="Overlay (טרייס מול מקור)" src={img(debug.images.overlay)} />}
-            {debug.images.difference && <ImgCard title="Difference" src={img(debug.images.difference)} />}
-            {debug.images.rendered && <ImgCard title="רינדור חוזר של ה-SVG" src={img(debug.images.rendered)} />}
-            {svg && <SvgCard title="SVG סופי" svg={svg} />}
-          </div>
-
-          {/* candidates */}
-          <div className="overflow-x-auto rounded-xl border border-stone-200 bg-white p-3">
-            <div className="mb-2 font-semibold">מועמדים ({debug.candidates.length})</div>
-            <table className="w-full text-right text-xs">
-              <thead className="text-stone-500">
-                <tr>
-                  <th className="p-1">מזהה</th><th className="p-1">IoU</th><th className="p-1">ממוצע</th><th className="p-1">מקס</th>
-                  <th className="p-1">חורים (מקור/וקטור)</th><th className="p-1">טופולוגיה</th><th className="p-1">עוגנים</th>
-                  <th className="p-1">ציון</th><th className="p-1">נדחה</th>
-                </tr>
-              </thead>
-              <tbody>
-                {debug.candidates.map((c) => (
-                  <tr key={c.candidate_id} className={`border-t border-stone-100 ${c.selected ? "bg-green-50 font-medium" : ""}`}>
-                    <td className="p-1">{c.candidate_id}{c.selected ? " ✓" : ""}</td>
-                    <td className="p-1">{c.iou}</td>
-                    <td className="p-1">{c.mean_dev_mm}</td>
-                    <td className="p-1">{c.max_dev_mm}</td>
-                    <td className="p-1">{c.source_holes}/{c.vector_holes}</td>
-                    <td className="p-1">{c.topology_ok ? "✓" : "✗"}</td>
-                    <td className="p-1">{c.anchors}</td>
-                    <td className="p-1">{c.score}</td>
-                    <td className="p-1 text-red-600">{c.rejected_reason ?? ""}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <Diagnostics
+          images={{
+            render: render?.dataUrl ?? null,
+            conditioned: debug.images?.conditioned ? img(debug.images.conditioned) : null,
+            overlay: debug.images?.overlay ? img(debug.images.overlay) : null,
+            difference: debug.images?.difference ? img(debug.images.difference) : null,
+            rendered: debug.images?.rendered ? img(debug.images.rendered) : null,
+          }}
+          renderModel={render?.model ?? null}
+          svg={svg}
+          debug={debug}
+        />
       )}
 
       {view === "run" && result && !debug && (
         <div className="rounded-xl border border-amber-300 bg-amber-50 p-3">
           <div className="mb-1 font-semibold text-amber-800">אין פירוק שלבים — תגובת המנוע הגולמית:</div>
           <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-all text-xs">{JSON.stringify(result, null, 2)}</pre>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// רכיב אבחון משותף לתצוגת הרצה חיה וליומן. images כבר כתובות URL/dataURL מוכנות.
+function Diagnostics({ images, renderModel, svg, debug }: {
+  images: StageUrls; renderModel: string | null; svg: string | null; debug: DebugMeta | null;
+}) {
+  const stages = debug?.stages ?? [];
+  const candidates = debug?.candidates ?? [];
+  const gates = debug?.gates ?? {};
+  const warnings = debug?.warnings ?? [];
+  return (
+    <div className="grid gap-4">
+      {/* timeline */}
+      {(stages.length > 0 || debug?.status) && (
+        <div className="rounded-xl border border-stone-200 bg-white p-3">
+          <div className="mb-2 font-semibold">
+            שלבים — סטטוס כללי:{" "}
+            <span className={`rounded border px-2 py-0.5 ${STATUS_COLOR[debug?.status ?? ""] ?? STATUS_COLOR.fail}`}>{debug?.status ?? "—"}</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {stages.map((s, i) => (
+              <div key={i} className={`rounded-lg border px-3 py-2 ${STATUS_COLOR[s.status] ?? ""}`}>
+                <div className="font-medium">{s.name}</div>
+                <div className="text-xs opacity-80">{s.detail}</div>
+              </div>
+            ))}
+          </div>
+          {warnings.length > 0 && (
+            <div className="mt-2 break-words text-xs text-amber-700">אזהרות: {warnings.join(" · ")}</div>
+          )}
+          {(gates.min_iou_hard != null || debug?.color_key != null) && (
+            <div className="mt-2 text-xs text-stone-500">
+              צבע־מפתח: {debug?.color_key ?? "—"}
+              {gates.min_iou_hard != null && <> · שערים: IoU≥{gates.min_iou_hard} · סטייה ממוצעת≤{gates.max_mean_deviation_mm}מ״מ · מקס≤{gates.max_max_deviation_mm}מ״מ</>}
+              {debug?.smooth_iters != null && <> · החלקה x{debug.smooth_iters}</>}
+              {debug?.width_mm != null && <> · אורך נגזר {debug.width_mm}מ״מ</>}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* images */}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+        {images.render && <ImgCard title={`הדמיית AI${renderModel ? ` (${renderModel})` : ""}`} src={images.render} />}
+        {images.conditioned && <ImgCard title="דו־גוני (קונדישנינג)" src={images.conditioned} />}
+        {images.overlay && <ImgCard title="Overlay (טרייס מול מקור)" src={images.overlay} />}
+        {images.difference && <ImgCard title="Difference" src={images.difference} />}
+        {images.rendered && <ImgCard title="רינדור חוזר של ה-SVG" src={images.rendered} />}
+        {svg && <SvgCard title="SVG סופי" svg={svg} />}
+      </div>
+
+      {/* candidates */}
+      {candidates.length > 0 && (
+        <div className="overflow-x-auto rounded-xl border border-stone-200 bg-white p-3">
+          <div className="mb-2 font-semibold">מועמדים ({candidates.length})</div>
+          <table className="w-full text-right text-xs">
+            <thead className="text-stone-500">
+              <tr>
+                <th className="p-1">מזהה</th><th className="p-1">IoU</th><th className="p-1">ממוצע</th><th className="p-1">מקס</th>
+                <th className="p-1">חורים (מקור/וקטור)</th><th className="p-1">טופולוגיה</th><th className="p-1">עוגנים</th>
+                <th className="p-1">ציון</th><th className="p-1">נדחה</th>
+              </tr>
+            </thead>
+            <tbody>
+              {candidates.map((c) => (
+                <tr key={c.candidate_id} className={`border-t border-stone-100 ${c.selected ? "bg-green-50 font-medium" : ""}`}>
+                  <td className="p-1">{c.candidate_id}{c.selected ? " ✓" : ""}</td>
+                  <td className="p-1">{c.iou}</td>
+                  <td className="p-1">{c.mean_dev_mm}</td>
+                  <td className="p-1">{c.max_dev_mm}</td>
+                  <td className="p-1">{c.source_holes}/{c.vector_holes}</td>
+                  <td className="p-1">{c.topology_ok ? "✓" : "✗"}</td>
+                  <td className="p-1">{c.anchors}</td>
+                  <td className="p-1">{c.score}</td>
+                  <td className="p-1 text-red-600">{c.rejected_reason ?? ""}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>

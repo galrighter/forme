@@ -11,23 +11,34 @@ import type { ValidationReport } from "@/lib/geometry/types";
 export interface VectorizeResult {
   cutoutsSvg: string;
   widthMm: number;
-  metrics: { iou?: number; holes?: number; meanDeviationMm?: number };
+  metrics: { iou?: number; holes?: number; meanDeviationMm?: number; maxDeviationMm?: number };
+}
+
+export interface VectorizeFull {
+  status: string; // "approved" | "rejected" | ...
+  cutoutsSvg: string | null;
+  widthMm: number;
+  metrics: VectorizeResult["metrics"];
+  /** התגובה הגולמית מה-vectorizer (כולל debug) — נשמרת ליומן הבק־אופיס. */
+  raw: Record<string, unknown>;
 }
 
 function vectorizerUrl(): string {
   return process.env.VECTORIZER_URL || "https://vec.rmjewel.com";
 }
 
-export async function vectorizeImage(
+/** בקשת POST אחת ל-vectorizer. מחזיר את הגוף הגולמי או זורק על כשל תקשורת/תגובה לא־JSON. */
+async function postJob(
   bytes: Uint8Array,
   mediaType: string,
-  opts: { heightMm: number; colorKey: "warm" | "dark" | "saturation" | "auto" },
-): Promise<VectorizeResult> {
+  opts: { heightMm: number; colorKey: string; debug: boolean },
+): Promise<Record<string, unknown>> {
   const form = new FormData();
   form.append("image", new Blob([bytes as BlobPart], { type: mediaType }), "design.png");
   form.append("height_mm", String(opts.heightMm));
   form.append("condition", "true");
   form.append("color_key", opts.colorKey);
+  if (opts.debug) form.append("debug", "true");
 
   const headers: Record<string, string> = {};
   if (process.env.VECTORIZER_TOKEN) headers.Authorization = `Bearer ${process.env.VECTORIZER_TOKEN}`;
@@ -38,17 +49,9 @@ export async function vectorizeImage(
   } catch (e) {
     throw new ApiError("vectorizer_unreachable", `Could not reach vectorizer: ${(e as Error).message}`, 502);
   }
-
   const text = await resp.text();
-  let data: {
-    status?: string;
-    error_code?: string;
-    cutouts_svg?: string;
-    input?: { width_mm?: number };
-    metrics?: { iou?: number; vector_holes?: number; mean_contour_deviation_mm?: number };
-  } = {};
   try {
-    data = JSON.parse(text);
+    return JSON.parse(text) as Record<string, unknown>;
   } catch {
     throw new ApiError(
       "vectorize_bad_response",
@@ -56,21 +59,61 @@ export async function vectorizeImage(
       502,
     );
   }
+}
 
-  if (!resp.ok || data.status !== "approved" || !data.cutouts_svg) {
-    const reason = data.error_code || data.status || `http_${resp.status}`;
-    throw new ApiError("vectorize_failed", `Vectorizer did not approve: ${reason}`, 422);
-  }
-
-  return {
-    cutoutsSvg: data.cutouts_svg,
-    widthMm: Number(data.input?.width_mm ?? 0),
-    metrics: {
-      iou: data.metrics?.iou,
-      holes: data.metrics?.vector_holes,
-      meanDeviationMm: data.metrics?.mean_contour_deviation_mm,
-    },
+interface VectorizerJson {
+  status?: string;
+  error_code?: string;
+  cutouts_svg?: string;
+  input?: { width_mm?: number };
+  metrics?: {
+    iou?: number;
+    vector_holes?: number;
+    mean_contour_deviation_mm?: number;
+    max_contour_deviation_mm?: number;
   };
+}
+
+function extractMetrics(d: VectorizerJson): VectorizeResult["metrics"] {
+  return {
+    iou: d.metrics?.iou,
+    holes: d.metrics?.vector_holes,
+    meanDeviationMm: d.metrics?.mean_contour_deviation_mm,
+    maxDeviationMm: d.metrics?.max_contour_deviation_mm,
+  };
+}
+
+/**
+ * מריץ את ה-vectorizer במצב debug ומחזיר גם את התוצאה וגם את ה-payload הגולמי,
+ * בלי לזרוק על דחיית נאמנות (כדי שאפשר לשמור את ההרצה ביומן ואז להחליט).
+ */
+export async function vectorizeImageFull(
+  bytes: Uint8Array,
+  mediaType: string,
+  opts: { heightMm: number; colorKey: "warm" | "dark" | "saturation" | "auto" },
+): Promise<VectorizeFull> {
+  const raw = await postJob(bytes, mediaType, { heightMm: opts.heightMm, colorKey: opts.colorKey, debug: true });
+  const d = raw as VectorizerJson;
+  return {
+    status: d.status || d.error_code || "unknown",
+    cutoutsSvg: d.cutouts_svg ?? null,
+    widthMm: Number(d.input?.width_mm ?? 0),
+    metrics: extractMetrics(d),
+    raw,
+  };
+}
+
+/** גרסה זורקת: מחזיר את התוצאה אם אושרה, אחרת ApiError. עוטף את vectorizeImageFull. */
+export async function vectorizeImage(
+  bytes: Uint8Array,
+  mediaType: string,
+  opts: { heightMm: number; colorKey: "warm" | "dark" | "saturation" | "auto" },
+): Promise<VectorizeResult> {
+  const full = await vectorizeImageFull(bytes, mediaType, opts);
+  if (full.status !== "approved" || !full.cutoutsSvg) {
+    throw new ApiError("vectorize_failed", `Vectorizer did not approve: ${full.status}`, 422);
+  }
+  return { cutoutsSvg: full.cutoutsSvg, widthMm: full.widthMm, metrics: full.metrics };
 }
 
 /** מריץ את ה-vectorizer במצב debug ומחזיר את כל האבחון (כולל בכשל) — לבק־אופיס. */
@@ -79,28 +122,12 @@ export async function vectorizeImageDebug(
   mediaType: string,
   opts: { heightMm: number; colorKey: "warm" | "dark" | "saturation" | "auto" },
 ): Promise<Record<string, unknown>> {
-  const form = new FormData();
-  form.append("image", new Blob([bytes as BlobPart], { type: mediaType }), "design.png");
-  form.append("height_mm", String(opts.heightMm));
-  form.append("condition", "true");
-  form.append("color_key", opts.colorKey);
-  form.append("debug", "true");
-
-  const headers: Record<string, string> = {};
-  if (process.env.VECTORIZER_TOKEN) headers.Authorization = `Bearer ${process.env.VECTORIZER_TOKEN}`;
-
-  let resp: Response;
   try {
-    resp = await fetch(`${vectorizerUrl()}/api/jobs`, { method: "POST", body: form, headers });
+    return await postJob(bytes, mediaType, { heightMm: opts.heightMm, colorKey: opts.colorKey, debug: true });
   } catch (e) {
-    return { __fetchError: (e as Error).message };
-  }
-  const text = await resp.text();
-  try {
-    return JSON.parse(text) as Record<string, unknown>;
-  } catch {
-    // surface the raw reply so the back-office shows what actually came back
-    return { __status: resp.status, __contentType: resp.headers.get("content-type"), __body: text.slice(0, 2000) };
+    // מחזירים את השגיאה כאובייקט כדי שהבק־אופיס יציג מה קרה במקום להיכשל.
+    if (e instanceof ApiError) return { __error: e.code, __body: e.message };
+    return { __error: "unknown", __body: (e as Error).message };
   }
 }
 

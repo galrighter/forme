@@ -18,14 +18,32 @@ function openaiKey(): string | undefined {
   return process.env.OPENAI_KEY || process.env.OPENAI_API_KEY;
 }
 
-/** פרומפט מכוון: רנדר שטוח, top-down, פליז חם על רקע לבן — קלט אידיאלי ל-vectorizer. */
-export function buildRenderPrompt(userPrompt: string): string {
+export type RenderProductType = "bracelet" | "ring";
+
+/**
+ * פרומפט מכוון: רנדר שטוח, top-down, פליז חם על רקע לבן — קלט אידיאלי ל-vectorizer.
+ * מותאם לסוג המוצר: צמיד = רצועה ארוכה; טבעת = רצועה קצרה ורחבה־יחסית (הטבעת
+ * נחתכת שטוחה בלייזר ואז מגולגלת), כדי שההדמיה תתאים לפרופורציות של המוצר.
+ */
+export function buildRenderPrompt(userPrompt: string, productType: RenderProductType = "bracelet"): string {
+  const piece =
+    productType === "ring"
+      ? {
+          object: "a laser-cut brass ring band, unrolled and laid out perfectly flat and straight as a short horizontal strip (this is the flat blank that gets rolled into a ring)",
+          strip: "The ring band is a single short horizontal strip of solid warm-gold brass with a decorative cut-out pattern running along it.",
+          scale: "Because a ring band is narrow and short, keep the cut-out pattern simple and boldly sized relative to the small strip — a few clear repeating openings, not fine dense detail.",
+        }
+      : {
+          object: "a laser-cut brass bracelet cuff, laid out perfectly straight and unrolled",
+          strip: "The bracelet is a single long horizontal strip of solid warm-gold brass with an intricate decorative cut-out pattern.",
+          scale: "Render the pattern as bold, cleanly separated cut-outs with generous openings and sturdy connecting metal bands.",
+        };
   return [
-    "A flat, top-down, orthographic product image of a laser-cut brass bracelet cuff, laid out perfectly straight and unrolled, filling the full width of the frame edge to edge, on a completely flat pure #FFFFFF white background.",
-    "The bracelet is a single long horizontal strip of solid warm-gold brass with an intricate decorative cut-out pattern.",
+    `A flat, top-down, orthographic product image of ${piece.object}, filling the full width of the frame edge to edge, on a completely flat pure #FFFFFF white background.`,
+    piece.strip,
     "The cut-out openings are fully cut through, showing the same pure white background through them.",
     "Design intent for the cut-out pattern: " + userPrompt + ".",
-    "Render the pattern as bold, cleanly separated cut-outs with generous openings and sturdy connecting metal bands — suitable for laser-cutting in 1.5mm brass. Avoid hair-thin lines, densely packed fine detail, or bands that nearly touch; keep clear space between adjacent openings.",
+    piece.scale + " Suitable for laser-cutting in 1.5mm brass. Avoid hair-thin lines, densely packed fine detail, or bands that nearly touch; keep clear space between adjacent openings.",
     "CRITICAL: absolutely NO drop shadow, NO cast shadow, NO ambient occlusion, NO reflection, NO gradient — the background is one uniform flat white with zero shading, and the metal sits flush like a flat vector illustration.",
     "Perfectly even flat lighting, straight overhead orthographic view, no perspective, no bevel, no depth, no hands, no props, no text, no border framing.",
     "High contrast: the brass is a clearly saturated warm gold, distinctly warmer and darker than the pure white, so the metal separates cleanly from the openings.",
@@ -59,11 +77,12 @@ async function callImages(
 export async function generateRenderPng(
   userPrompt: string,
   inspiration: LlmImage | null,
+  productType: RenderProductType = "bracelet",
 ): Promise<RenderResult> {
   const key = openaiKey();
   if (!key) throw new LlmError("OPENAI_KEY is not configured for image generation", false);
 
-  const prompt = buildRenderPrompt(userPrompt);
+  const prompt = buildRenderPrompt(userPrompt, productType);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), IMAGE_TIMEOUT_MS);
   const errors: string[] = [];

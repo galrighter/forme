@@ -4,10 +4,12 @@ import { handleRouteError, parseBody, ApiError } from "@/lib/api";
 import { decodeDataUrl } from "@/lib/db/storage";
 import { generateRenderPng } from "@/lib/llm/imagegen";
 import { vectorizeImageDebug } from "@/lib/vectorizer";
+import { persistRun } from "@/lib/runs/persist";
 import type { LlmImage } from "@/lib/llm/core";
 
 // בק־אופיס: מריץ את כל הצינור עם אבחון מלא ומחזיר את כל השלבים והקבצים.
-// לא שומר גרסה — נועד לתכנון/דיבוג בלבד. מקבל פרומפט או תמונה (או שניהם).
+// שומר את ההרצה ל-generation_runs (source=debug) כדי שנוכל לשוחח על התוצאות
+// ביומן. מקבל פרומפט או תמונה (או שניהם). לא יוצר גרסת עיצוב.
 
 export const maxDuration = 300;
 
@@ -16,11 +18,15 @@ const schema = z.object({
   image: z.object({ dataUrl: z.string().max(8_000_000) }).nullable().optional(),
   heightMm: z.number().min(1).max(100).default(15),
   colorKey: z.enum(["warm", "dark", "saturation", "auto"]).default("auto"),
+  productType: z.enum(["bracelet", "ring"]).default("bracelet"),
 });
 
 const ALLOWED_MEDIA = new Set(["image/png", "image/jpeg", "image/webp"]);
 
 export async function POST(req: Request) {
+  const runId = crypto.randomUUID();
+  const startedAt = Date.now();
+
   try {
     const body = await parseBody(req, schema);
     if (!body.prompt && !body.image) {
@@ -40,9 +46,9 @@ export async function POST(req: Request) {
       mediaType = dec.mediaType;
       renderDataUrl = body.image.dataUrl;
     } else {
-      // מסלול פרומפט: מייצרים הדמיה קודם.
-      let inspiration: LlmImage | null = null;
-      const render = await generateRenderPng(body.prompt!, inspiration);
+      // מסלול פרומפט: מייצרים הדמיה קודם (מותאם לסוג המוצר).
+      const inspiration: LlmImage | null = null;
+      const render = await generateRenderPng(body.prompt!, inspiration, body.productType);
       renderDataUrl = `data:${render.mediaType};base64,${render.base64}`;
       renderModel = render.model;
       const dec = decodeDataUrl(renderDataUrl);
@@ -50,17 +56,39 @@ export async function POST(req: Request) {
       mediaType = dec.mediaType;
     }
 
-    const result = await vectorizeImageDebug(bytes, mediaType, {
-      heightMm: body.heightMm,
-      // generated renders are always brass -> warm; uploads use the chosen key.
-      colorKey: body.image ? body.colorKey : "warm",
+    // generated renders are always brass -> warm; uploads use the chosen key.
+    const colorKey = body.image ? body.colorKey : "warm";
+    const result = await vectorizeImageDebug(bytes, mediaType, { heightMm: body.heightMm, colorKey });
+
+    // שומרים את ההרצה ליומן (best-effort) כדי שנוכל לשוחח עליה בבק־אופיס.
+    const runError = (result as { __error?: string }).__error
+      ? String((result as { __body?: string }).__body ?? "vectorizer error")
+      : null;
+    await persistRun({
+      id: runId,
+      source: "debug",
+      productType: body.productType,
+      prompt: body.prompt ?? null,
+      colorKey,
+      startedAt,
+      render: { bytes, mediaType, model: renderModel },
+      vectorizer: result as Record<string, unknown>,
+      error: runError,
     });
 
     return NextResponse.json({
+      runId,
       render: renderDataUrl ? { dataUrl: renderDataUrl, model: renderModel } : null,
       result,
     });
   } catch (err) {
+    await persistRun({
+      id: runId,
+      source: "debug",
+      startedAt,
+      error: err instanceof Error ? err.message : String(err),
+      vectorizer: null,
+    });
     return handleRouteError(err);
   }
 }
