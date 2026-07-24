@@ -64,7 +64,7 @@ export async function POST(req: Request) {
     // 3) המרת ההדמיה ל-cutouts SVG נקי דרך ה-vectorizer.
     const { cutoutsSvg, widthMm, metrics } = await vectorizeImage(renderBytes, render.mediaType, {
       heightMm: Number(design.width_mm),
-      colorKey: "auto",
+      colorKey: "warm",
     });
 
     // 4) ולידציה ושמירת גרסה דרך הצינור הקיים.

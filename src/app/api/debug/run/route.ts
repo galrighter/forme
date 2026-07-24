@@ -52,7 +52,8 @@ export async function POST(req: Request) {
 
     const result = await vectorizeImageDebug(bytes, mediaType, {
       heightMm: body.heightMm,
-      colorKey: body.colorKey,
+      // generated renders are always brass -> warm; uploads use the chosen key.
+      colorKey: body.image ? body.colorKey : "warm",
     });
 
     return NextResponse.json({
