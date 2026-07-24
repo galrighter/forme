@@ -8,9 +8,12 @@
     "directory": ".open-next/assets",
     "binding": "ASSETS"
   },
+  // הדומיין המותאם — wrangler יוצר את רשומות ה-DNS + התעודות אוטומטית בדיפלוי.
+  // דורש שה-CLOUDFLARE_API_TOKEN יכלול Zone·Workers-Routes·Edit + Zone·DNS·Edit
+  // עבור rmjewel.com. הקנוניקל נשאר rmjewel.com (SITE.url).
   "routes": [
-    { "pattern": "studio.rmjewel.com", "custom_domain": true },
-    { "pattern": "studio.powdercoat.co.il", "custom_domain": true }
+    { "pattern": "rmjewel.com", "custom_domain": true },
+    { "pattern": "www.rmjewel.com", "custom_domain": true }
   ],
   "observability": {
     "enabled": true
@@ -18,4 +21,6 @@
   // Runtime secrets (set via `wrangler secret put` or the deploy workflow):
   //   ANTHROPIC_API_KEY, OPENAI_KEY, SUPABASE_URL, SUPABASE_SECRET_KEY,
   //   LLM_MODEL, OPENAI_MODEL, LLM_PROVIDER
+  //   ADMIN_TOKEN — shared secret (>=8 chars) that gates /admin (site inquiries).
+  //                 Without it, /admin is disabled; the public order form still works.
 }
