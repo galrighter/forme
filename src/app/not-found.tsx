@@ -5,20 +5,20 @@ const s = he.site;
 
 export default function NotFound() {
   return (
-    <div className="flex min-h-full flex-col items-center justify-center px-6 py-24 text-center">
-      <span className="text-6xl font-semibold text-[#c9a227]">404</span>
-      <h1 className="mt-4 text-2xl font-semibold text-stone-900">{s.notFoundTitle}</h1>
-      <p className="mt-2 max-w-sm text-stone-600">{s.notFoundBody}</p>
+    <div className="rm-scope flex min-h-full flex-col items-center justify-center px-6 py-24 text-center">
+      <span className="font-display text-6xl font-semibold text-cobalt">404</span>
+      <h1 className="mt-4 text-2xl font-semibold text-graphite">{s.notFoundTitle}</h1>
+      <p className="mt-2 max-w-sm text-ink60">{s.notFoundBody}</p>
       <div className="mt-8 flex flex-wrap justify-center gap-3">
         <Link
           href="/"
-          className="rounded-full bg-stone-900 px-6 py-3 text-sm font-medium text-stone-50 transition-colors hover:bg-stone-700"
+          className="rounded-[2px] bg-graphite px-6 py-3 text-sm font-semibold text-porcelain transition-colors hover:bg-graphite/90"
         >
           {s.notFoundHome}
         </Link>
         <Link
-          href="/studio"
-          className="rounded-full border border-stone-300 px-6 py-3 text-sm font-medium text-stone-700 transition-colors hover:bg-stone-100"
+          href="/design"
+          className="rounded-[2px] border border-graphite px-6 py-3 text-sm font-medium text-graphite transition-colors hover:border-cobalt hover:text-cobalt"
         >
           {s.ctaStart}
         </Link>

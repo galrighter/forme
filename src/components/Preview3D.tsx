@@ -34,7 +34,7 @@ export function Preview3D() {
     mount.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xf5f5f4);
+    scene.background = new THREE.Color(0xf4f1eb);
     const pmrem = new THREE.PMREMGenerator(renderer);
     scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
 
@@ -119,7 +119,7 @@ export function Preview3D() {
   return (
     <div ref={mountRef} className="h-full w-full" style={{ direction: "ltr" }}>
       {!geometry && (
-        <div className="flex h-full items-center justify-center text-sm text-stone-400">…</div>
+        <div className="flex h-full items-center justify-center text-sm text-mist">…</div>
       )}
     </div>
   );

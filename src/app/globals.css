@@ -1,11 +1,60 @@
 @import "tailwindcss";
 
+/* ===== RM JEWEL design tokens =====
+   שפת עיצוב אדריכלית: פורצלן / גרפיט / קובלט.
+   שמות ייעודיים בלבד — לא דורסים את פלטת stone הדיפולטית שבה משתמש הסטודיו. */
+@theme {
+  --color-porcelain: #f4f1eb;
+  --color-porcelain-slab: #e7e1d6;
+  --color-stonesoft: #d8d2c8;
+  --color-graphite: #202326;
+  --color-mist: #aab4b8;
+  --color-ink60: #6b6f73;
+  --color-ink80: #3d4145;
+  --color-cobalt: #315bff;
+  --color-cobalt-ink: #204acc;
+  --color-successgreen: #4a8f5c;
+
+  --font-display: "Archivo", system-ui, sans-serif;
+  --font-body: "Assistant", system-ui, sans-serif;
+}
+
 html, body {
   height: 100%;
   overscroll-behavior: none;
+}
+
+/* פונט הגוף אחיד לכל האתר — כולל הסטודיו (עורך ה-CAD). */
+body {
+  font-family: var(--font-body);
 }
 
 /* מניעת זום כפול-הקשה על iOS בתוך הקנבס */
 .touch-none-canvas {
   touch-action: none;
 }
+
+/* ===== סקופ שפת RM JEWEL — חל על האתר השיווקי ומסע העיצוב בלבד,
+   כדי לא לשנות את רינדור הסטודיו (עורך ה-CAD). ===== */
+.rm-scope {
+  font-family: var(--font-body);
+  color: var(--color-graphite);
+  /* רקע פורצלן + גריד שרטוט עדין + זוהר קובלט */
+  background:
+    linear-gradient(rgba(32, 35, 38, 0.028) 1px, transparent 1px) 0 0 / 72px 72px,
+    linear-gradient(90deg, rgba(32, 35, 38, 0.028) 1px, transparent 1px) 0 0 / 72px 72px,
+    radial-gradient(circle at 78% 12%, rgba(49, 91, 255, 0.05), transparent 42%),
+    var(--color-porcelain);
+}
+.rm-scope a { color: var(--color-cobalt); text-decoration: none; }
+.rm-scope a:hover { color: var(--color-cobalt-ink); }
+.rm-scope ::selection { background: var(--color-cobalt); color: var(--color-porcelain); }
+.rm-scope input,
+.rm-scope textarea,
+.rm-scope button { font-family: inherit; }
+
+@keyframes rmFade {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.rm-fade { animation: rmFade 0.45s ease; }
