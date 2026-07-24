@@ -3,10 +3,12 @@ import { z } from "zod";
 import { handleRouteError, parseBody, ApiError } from "@/lib/api";
 import { getDesign } from "@/lib/db/designs";
 import { decodeDataUrl, uploadFile } from "@/lib/db/storage";
-import { vectorizeImage, ingestCutouts } from "@/lib/vectorizer";
+import { vectorizeImageFull, ingestCutouts } from "@/lib/vectorizer";
+import { persistRun } from "@/lib/runs/persist";
 
 // מסלול 1: העלאת תמונת עיצוב (רנדר מתכתי) והמרתה ל-SVG דרך שירות ה-vectorizer.
 // התמונה עוברת קונדישנינג + החלקה, וה-cutouts נכנס לצינור הקיים ונשמר כגרסה.
+// כל הרצה נשמרת ל-generation_runs (כולל דחייה/שגיאה) ליומן הבק־אופיס.
 
 export const maxDuration = 300;
 
@@ -19,8 +21,14 @@ const schema = z.object({
 const ALLOWED_MEDIA = new Set(["image/png", "image/jpeg", "image/webp"]);
 
 export async function POST(req: Request) {
+  const runId = crypto.randomUUID();
+  const startedAt = Date.now();
+  let persisted = false;
+  let designId: string | null = null;
+
   try {
     const body = await parseBody(req, schema);
+    designId = body.designId;
     const design = await getDesign(body.designId);
 
     const { bytes, mediaType } = decodeDataUrl(body.image.dataUrl);
@@ -32,22 +40,50 @@ export async function POST(req: Request) {
     const renderPngPath = `renders/${design.id}/${Date.now()}.png`;
     await uploadFile(renderPngPath, bytes, mediaType);
 
-    const { cutoutsSvg, widthMm, metrics } = await vectorizeImage(bytes, mediaType, {
+    const vec = await vectorizeImageFull(bytes, mediaType, {
       heightMm: Number(design.width_mm),
       colorKey: body.colorKey,
     });
 
+    await persistRun({
+      id: runId,
+      source: "upload",
+      designId: design.id,
+      productType: design.product_type,
+      prompt: null,
+      colorKey: body.colorKey,
+      startedAt,
+      render: { path: renderPngPath, model: null },
+      vectorizer: vec.raw,
+    });
+    persisted = true;
+
+    if (vec.status !== "approved" || !vec.cutoutsSvg) {
+      throw new ApiError("vectorize_failed", `Vectorizer did not approve: ${vec.status}`, 422);
+    }
+
     const { version, report, geometry, lengthMm } = await ingestCutouts({
       design,
-      cutoutsSvg,
-      derivedLength: widthMm,
+      cutoutsSvg: vec.cutoutsSvg,
+      derivedLength: vec.widthMm,
       userPrompt: null,
       renderPngPath,
-      metrics,
+      metrics: vec.metrics,
     });
 
-    return NextResponse.json({ version, report, geometry, lengthMm, vectorizer: metrics });
+    return NextResponse.json({ runId, version, report, geometry, lengthMm, vectorizer: vec.metrics });
   } catch (err) {
+    if (!persisted) {
+      await persistRun({
+        id: runId,
+        source: "upload",
+        designId,
+        prompt: null,
+        startedAt,
+        error: err instanceof Error ? err.message : String(err),
+        vectorizer: null,
+      });
+    }
     return handleRouteError(err);
   }
 }

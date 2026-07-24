@@ -1,42 +1,51 @@
 import { NextResponse } from "next/server";
 import { handleRouteError } from "@/lib/api";
-import { listRecentVersions } from "@/lib/db/designs";
+import { listRuns, type RunStagePaths } from "@/lib/db/runs";
 import { signedUrl } from "@/lib/db/storage";
 
-// בק־אופיס: יומן כל היצירות האחרונות (מכל המשתמשים) — הדמיה, SVG, סטטוס ומדדים,
-// כדי לאתר בעיות מתלונות משתמשים בדיעבד.
+// בק־אופיס: יומן כל הרצות הצינור (מכל המסלולים) — הדמיה, שלבי ביניים, SVG, סטטוס
+// ומדדים, כדי לאבחן בעיות מתלונות משתמשים ולכייל יחד את איכות ההמרה.
 
 export const maxDuration = 60;
 
+async function sign(path: string | null | undefined): Promise<string | null> {
+  if (!path) return null;
+  try {
+    return await signedUrl(path, 3600);
+  } catch {
+    return null;
+  }
+}
+
 export async function GET() {
   try {
-    const rows = await listRecentVersions(80);
+    const rows = await listRuns(80);
     const items = await Promise.all(
       rows.map(async (r) => {
-        const report = (r.validation_report ?? {}) as {
-          renderPngPath?: string | null;
-          vectorizer?: { iou?: number; holes?: number; meanDeviationMm?: number } | null;
-        };
-        let renderUrl: string | null = null;
-        if (report.renderPngPath) {
-          try {
-            renderUrl = await signedUrl(report.renderPngPath, 3600);
-          } catch {
-            renderUrl = null;
-          }
-        }
+        const stages = (r.stage_paths ?? {}) as RunStagePaths;
+        const [renderUrl, conditioned, overlay, difference, rendered] = await Promise.all([
+          sign(r.render_path),
+          sign(stages.conditioned),
+          sign(stages.overlay),
+          sign(stages.difference),
+          sign(stages.rendered),
+        ]);
         return {
-          versionId: r.id,
-          designId: r.design_id,
-          designName: r.design_name,
-          widthMm: r.design_width_mm,
-          versionNo: r.version_no,
-          status: r.validation_status,
+          id: r.id,
           createdAt: r.created_at,
-          prompt: r.user_prompt,
+          source: r.source,
+          productType: r.product_type,
+          prompt: r.prompt,
+          colorKey: r.color_key,
+          status: r.status,
+          error: r.error,
+          durationMs: r.duration_ms,
+          renderModel: r.render_model,
           renderUrl,
+          stages: { conditioned, overlay, difference, rendered },
           svg: r.svg,
-          metrics: report.vectorizer ?? null,
+          metrics: r.metrics,
+          debug: r.debug,
         };
       }),
     );
