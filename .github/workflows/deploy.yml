@@ -46,4 +46,8 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # Temporary: full API request/response trace to diagnose the
+          # /zones/.../workers/routes 10000 error. Remove after diagnosis.
+          # WRANGLER_LOG_SANITIZE defaults to true, so auth headers are redacted.
+          WRANGLER_LOG: debug
         run: npx opennextjs-cloudflare deploy
