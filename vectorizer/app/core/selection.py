@@ -30,9 +30,20 @@ class Selection:
     warnings: list[str] = field(default_factory=list)
 
 
+def _topology_ok(c: Candidate) -> bool:
+    """Tolerant topology: minor hole loss/gain on an AI render is acceptable."""
+    s, v = c.metrics.source_topology, c.metrics.vector_topology
+    hole_budget = max(SETTINGS.hole_diff_abs, round(s.holes * SETTINGS.hole_diff_frac))
+    if abs(v.holes - s.holes) > hole_budget:
+        return False
+    if abs(v.components - s.components) > SETTINGS.component_diff_abs:
+        return False
+    return True
+
+
 def _hard_gate(c: Candidate) -> Optional[str]:
     m, g = c.metrics, c.geometry_stats
-    if not m.topology_ok:
+    if not _topology_ok(c):
         return "TOPOLOGY_CHANGED"
     if g.self_intersections > 0:
         return "GEOMETRY_INVALID"

@@ -40,9 +40,15 @@ class Settings:
     # smooth manufacturable design that preserves the topology is. Calibrated on
     # real 40+ hole wavy cuffs. All env-overridable to tighten per use case.
     min_iou_hard: float = _f("MIN_IOU_HARD", 0.88)
-    target_iou: float = _f("TARGET_IOU", 0.90)
-    max_mean_deviation_mm: float = _f("MAX_MEAN_DEVIATION_MM", 0.05)
-    max_max_deviation_mm: float = _f("MAX_MAX_DEVIATION_MM", 1.0)
+    target_iou: float = _f("TARGET_IOU", 0.88)
+    max_mean_deviation_mm: float = _f("MAX_MEAN_DEVIATION_MM", 0.12)
+    max_max_deviation_mm: float = _f("MAX_MAX_DEVIATION_MM", 3.0)
+    # Topology tolerance: losing/gaining a few small holes on an AI render is
+    # fine (the design intent survives); require the hole count within this
+    # fraction (or a small absolute floor) and components within a small delta.
+    hole_diff_frac: float = _f("HOLE_DIFF_FRAC", 0.2)
+    hole_diff_abs: int = _i("HOLE_DIFF_ABS", 3)
+    component_diff_abs: int = _i("COMPONENT_DIFF_ABS", 1)
 
     # candidate search
     max_candidates: int = _i("MAX_CANDIDATES", 15)
