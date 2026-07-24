@@ -8,11 +8,13 @@
     "directory": ".open-next/assets",
     "binding": "ASSETS"
   },
-  // הדומיין המותאם (rmjewel.com + www) מנוהל ידנית ב-Cloudflare Dashboard
-  // ולא כאן — Workers & Pages → forme-studio → Domains & Routes → Add →
-  // Custom Domain. כך הדיפלוי לא צריך הרשאת Zone·Workers-Routes בטוקן (שכשלה
-  // עם auth error 10000), ורץ עם הרשאות ה-account בלבד. Cloudflare מייצר את
-  // רשומות ה-DNS + התעודות בעצמו, וההגדרה נשמרת בין דיפלויים.
+  // הדומיין המותאם — wrangler יוצר את רשומות ה-DNS + התעודות אוטומטית בדיפלוי.
+  // דורש שה-CLOUDFLARE_API_TOKEN יכלול Zone·Workers-Routes·Edit + Zone·DNS·Edit
+  // עבור rmjewel.com. הקנוניקל נשאר rmjewel.com (SITE.url).
+  "routes": [
+    { "pattern": "rmjewel.com", "custom_domain": true },
+    { "pattern": "www.rmjewel.com", "custom_domain": true }
+  ],
   "observability": {
     "enabled": true
   }
